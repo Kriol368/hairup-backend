@@ -12,7 +12,6 @@ class AuthServiceImpl : AuthService {
 
     override suspend fun register(request: RegisterRequest): Result<AuthResponse> {
         return try {
-            // Check if user already exists
             val existingUser = database.from(Users)
                 .select()
                 .where { Users.email eq request.email }
@@ -23,10 +22,8 @@ class AuthServiceImpl : AuthService {
                 return Result.failure(Exception("User with this email already exists"))
             }
 
-            // Hash password
             val hashedPassword = PasswordHasher.hashPassword(request.password)
 
-            // Insert new user
             val userId = database.insertAndGenerateKey(Users) {
                 set(Users.email, request.email)
                 set(Users.password, hashedPassword)
@@ -38,10 +35,8 @@ class AuthServiceImpl : AuthService {
                 set(Users.levelId, 1)
             } as Int
 
-            // Get the created user
             val user = getUserById(userId) ?: throw Exception("Failed to create user")
 
-            // Generate token
             val token = JwtConfig.makeToken(userId, user.email, user.admin)
 
             Result.success(AuthResponse(token, user.toResponse()))
@@ -52,7 +47,6 @@ class AuthServiceImpl : AuthService {
 
     override suspend fun login(request: LoginRequest): Result<AuthResponse> {
         return try {
-            // Find user by email
             val user = database.from(Users)
                 .select()
                 .where { Users.email eq request.email }
@@ -63,12 +57,10 @@ class AuthServiceImpl : AuthService {
                 return Result.failure(Exception("Invalid email or password"))
             }
 
-            // Verify password
             if (!PasswordHasher.verifyPassword(request.password, user.password)) {
                 return Result.failure(Exception("Invalid email or password"))
             }
 
-            // Generate token
             val token = JwtConfig.makeToken(user.id, user.email, user.admin)
 
             Result.success(AuthResponse(token, user.toResponse()))

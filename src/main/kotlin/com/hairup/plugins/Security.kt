@@ -1,7 +1,5 @@
 package com.hairup.plugins
 
-import com.auth0.jwt.JWT
-import com.auth0.jwt.algorithms.Algorithm
 import com.hairup.config.JwtConfig
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
