@@ -43,3 +43,45 @@ data class ErrorResponse(
 data class MessageResponse(
     val message: String
 )
+@Serializable
+data class CreateBookingRequest(
+    val serviceId: Int,
+    val date: String,
+    val time: String
+)
+
+@Serializable
+data class UpdateBookingRequest(
+    val date: String? = null,
+    val time: String? = null,
+    val status: Int? = null
+)
+
+@Serializable
+data class CreateProductRequest(
+    val name: String,
+    val description: String? = null,
+    val price: Double,
+    val image: String? = null,
+    val available: Boolean = true,
+    val points: Int = 0,
+    val categoryId: Int? = null
+)
+
+@Serializable
+data class UpdateProductRequest(
+    val name: String? = null,
+    val description: String? = null,
+    val price: Double? = null,
+    val image: String? = null,
+    val available: Boolean? = null,
+    val points: Int? = null,
+    val categoryId: Int? = null
+)
+
+@Serializable
+data class SuccessResponse(
+    val success: Boolean = true,
+    val message: String,
+    val id: Int? = null
+)
