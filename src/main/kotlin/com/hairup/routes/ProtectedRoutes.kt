@@ -19,22 +19,6 @@ fun Route.protectedRoutes() {
                     MessageResponse("Hello World! User ID: $userId, Email: $email")
                 )
             }
-
-            // Example of another protected endpoint
-            get("/me") {
-                val principal = call.principal<JWTPrincipal>()
-                val userId = principal?.getClaim("userId", Int::class)
-                val email = principal?.getClaim("email", String::class)
-                val isAdmin = principal?.getClaim("isAdmin", Boolean::class) ?: false
-
-                call.respond(
-                    mapOf(
-                        "userId" to userId,
-                        "email" to email,
-                        "isAdmin" to isAdmin
-                    )
-                )
-            }
         }
     }
 }
