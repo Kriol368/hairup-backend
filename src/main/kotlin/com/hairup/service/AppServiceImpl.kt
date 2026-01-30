@@ -19,7 +19,8 @@ class AppServiceImpl : AppService {
                     email = row[Users.email]!!,
                     xp = row[Users.xp]!!,
                     levelName = row[Levels.name]!!,
-                    levelId = row[Users.levelId]!!
+                    levelId = row[Users.levelId]!!,
+                    phone = row[Users.phone]!!
                 )
             }.firstOrNull()
     }
@@ -38,11 +39,11 @@ class AppServiceImpl : AppService {
         }.firstOrNull()
     }
 
-    override suspend fun getPastAppointments(userId: Int, limit: Int): List<PastAppointmentResponse> {
+    override suspend fun getPastAppointments(userId: Int,): List<PastAppointmentResponse> {
         val today = LocalDate.now()
         return database.from(Bookings).innerJoin(Services, on = Bookings.serviceId eq Services.id).select().where {
             (Bookings.userId eq userId) and (Bookings.date less today) and (Bookings.status eq 1)
-        }.orderBy(Bookings.date.desc()).limit(limit).map { row ->
+        }.orderBy(Bookings.date.desc()).map { row ->
             PastAppointmentResponse(
                 id = row[Bookings.id]!!,
                 serviceName = row[Services.name]!!,

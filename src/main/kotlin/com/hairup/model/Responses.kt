@@ -16,7 +16,7 @@ data class PastAppointmentResponse(
 
 @Serializable
 data class UserProfileResponse(
-    val id: Int, val name: String, val email: String, val xp: Int, val levelName: String, val levelId: Int
+    val id: Int, val name: String, val email: String, val xp: Int, val levelName: String, val levelId: Int, val phone: String
 )
 
 @Serializable

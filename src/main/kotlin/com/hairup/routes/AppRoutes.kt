@@ -89,7 +89,7 @@ fun Route.appRoutes() {
                     return@get
                 }
 
-                val pastAppointments = appService.getPastAppointments(userId, 3)
+                val pastAppointments = appService.getPastAppointments(userId)
                 call.respond(ListResponse(data = pastAppointments))
             }
 
