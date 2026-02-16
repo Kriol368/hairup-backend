@@ -13,7 +13,6 @@ import io.ktor.server.routing.*
 fun Route.appRoutes() {
     val appService = AppServiceImpl()
 
-    // Endpoints GET (públicos o protegidos según necesites)
     route("/api/levels") {
         get {
             val levels = appService.getAllLevels()
@@ -35,9 +34,14 @@ fun Route.appRoutes() {
         }
     }
 
-    // Endpoints protegidos por JWT
+    route("/api/admin-users") {
+        get {
+            val adminUsers = appService.getAdminUsers()
+            call.respond(ListResponse(data = adminUsers))
+        }
+    }
+
     authenticate("auth-jwt") {
-        // Perfil del usuario
         route("/api/user") {
             get("/profile") {
                 val principal = call.principal<JWTPrincipal>()
@@ -56,11 +60,358 @@ fun Route.appRoutes() {
                     call.respond(HttpStatusCode.OK, profile)
                 }
             }
+
+            put("/profile") {
+
+                val principal = call.principal<JWTPrincipal>()
+                val userId = principal?.getClaim("userId", Int::class)
+
+                if (userId == null) {
+                    call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Usuario no autenticado"))
+                    return@put
+                }
+
+                try {
+                    val request = call.receive<UpdateProfileRequest>()
+
+                    if (request.name == null && request.email == null && request.phone == null) {
+                        call.respond(
+                            HttpStatusCode.BadRequest,
+                            ErrorResponse("Debes proporcionar al menos un campo para actualizar")
+                        )
+                        return@put
+                    }
+
+                    if (!request.email.isNullOrBlank() && !isValidEmail(request.email)) {
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse("Formato de email inválido"))
+                        return@put
+                    }
+
+                    if (!request.name.isNullOrBlank() && request.name.length < 2) {
+                        call.respond(
+                            HttpStatusCode.BadRequest,
+                            ErrorResponse("El nombre debe tener al menos 2 caracteres")
+                        )
+                        return@put
+                    }
+
+                    val result = appService.updateUserProfile(userId, request)
+
+                    result.fold(
+                        onSuccess = { updatedProfile ->
+                            call.respond(HttpStatusCode.OK, updatedProfile)
+                        },
+                        onFailure = { exception ->
+                            when (exception.message) {
+                                "Usuario no encontrado" ->
+                                    call.respond(HttpStatusCode.NotFound, ErrorResponse(exception.message!!))
+
+                                "El email ya está siendo utilizado por otro usuario" ->
+                                    call.respond(HttpStatusCode.Conflict, ErrorResponse(exception.message!!))
+
+                                else ->
+                                    call.respond(
+                                        HttpStatusCode.BadRequest,
+                                        ErrorResponse(exception.message ?: "Error al actualizar el perfil")
+                                    )
+                            }
+                        }
+                    )
+                } catch (e: Exception) {
+                    call.respond(
+                        HttpStatusCode.BadRequest,
+                        ErrorResponse("Formato de request inválido: ${e.message}")
+                    )
+                }
+            }
+
+            post("/change-password") {
+                val principal = call.principal<JWTPrincipal>()
+                val userId = principal?.getClaim("userId", Int::class)
+
+                if (userId == null) {
+                    call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Usuario no autenticado"))
+                    return@post
+                }
+
+                try {
+                    val request = call.receive<ChangePasswordRequest>()
+
+                    if (request.currentPassword.isBlank()) {
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse("La contraseña actual es requerida"))
+                        return@post
+                    }
+
+                    if (request.newPassword.isBlank()) {
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse("La nueva contraseña es requerida"))
+                        return@post
+                    }
+
+                    if (request.newPassword.length < 6) {
+                        call.respond(
+                            HttpStatusCode.BadRequest,
+                            ErrorResponse("La nueva contraseña debe tener al menos 6 caracteres")
+                        )
+                        return@post
+                    }
+
+                    if (request.currentPassword == request.newPassword) {
+                        call.respond(
+                            HttpStatusCode.BadRequest,
+                            ErrorResponse("La nueva contraseña debe ser diferente a la actual")
+                        )
+                        return@post
+                    }
+
+                    val result = appService.changePassword(userId, request)
+
+                    result.fold(
+                        onSuccess = {
+                            call.respond(
+                                HttpStatusCode.OK,
+                                MessageResponse("Contraseña actualizada exitosamente")
+                            )
+                        },
+                        onFailure = { exception ->
+                            when (exception.message) {
+                                "Usuario no encontrado" ->
+                                    call.respond(HttpStatusCode.NotFound, ErrorResponse(exception.message!!))
+
+                                "Contraseña actual incorrecta" ->
+                                    call.respond(HttpStatusCode.Unauthorized, ErrorResponse(exception.message!!))
+
+                                else ->
+                                    call.respond(
+                                        HttpStatusCode.BadRequest,
+                                        ErrorResponse(exception.message ?: "Error al cambiar la contraseña")
+                                    )
+                            }
+                        }
+                    )
+                } catch (e: Exception) {
+                    call.respond(
+                        HttpStatusCode.BadRequest,
+                        ErrorResponse("Formato de request inválido: ${e.message}")
+                    )
+                }
+            }
+
         }
 
-        // Citas
+        route("/api/admin/users") {
+            get {
+                val principal = call.principal<JWTPrincipal>()
+                val isAdmin = principal?.getClaim("isAdmin", Boolean::class) ?: false
+
+                if (!isAdmin) {
+                    call.respond(
+                        HttpStatusCode.Forbidden,
+                        ErrorResponse("Solo administradores pueden acceder a este recurso")
+                    )
+                    return@get
+                }
+
+                val users = appService.getAllUsers()
+                call.respond(ListResponse(data = users))
+            }
+        }
+
+        route("/api/admin/make-admin") {
+            post {
+                val principal = call.principal<JWTPrincipal>()
+                val isAdmin = principal?.getClaim("isAdmin", Boolean::class) ?: false
+
+                if (!isAdmin) {
+                    call.respond(
+                        HttpStatusCode.Forbidden,
+                        ErrorResponse("Solo administradores pueden realizar esta acción")
+                    )
+                    return@post
+                }
+
+                try {
+                    val request = call.receive<MakeAdminRequest>()
+
+                    if (request.userId <= 0) {
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse("ID de usuario inválido"))
+                        return@post
+                    }
+
+                    val currentUserId = principal?.getClaim("userId", Int::class)
+                    if (currentUserId == request.userId) {
+                        call.respond(
+                            HttpStatusCode.BadRequest,
+                            ErrorResponse("No puedes modificar tu propio estado de administrador")
+                        )
+                        return@post
+                    }
+
+                    val result = appService.makeUserAdmin(request.userId)
+
+                    result.fold(
+                        onSuccess = { _ ->
+                            call.respond(
+                                HttpStatusCode.OK,
+                                SuccessResponse(message = "Usuario promovido a administrador exitosamente")
+                            )
+                        },
+                        onFailure = { exception ->
+                            when (exception.message) {
+                                "Usuario no encontrado" ->
+                                    call.respond(HttpStatusCode.NotFound, ErrorResponse(exception.message!!))
+
+                                else ->
+                                    call.respond(
+                                        HttpStatusCode.BadRequest,
+                                        ErrorResponse(exception.message ?: "Error al promover usuario")
+                                    )
+                            }
+                        }
+                    )
+                } catch (e: Exception) {
+                    call.respond(
+                        HttpStatusCode.BadRequest,
+                        ErrorResponse("Formato de request inválido: ${e.message}")
+                    )
+                }
+            }
+        }
+        route("/api/barbers/{barberId}/availability") {
+            get {
+                val principal = call.principal<JWTPrincipal>()
+                val userId = principal?.getClaim("userId", Int::class)
+
+                if (userId == null) {
+                    call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Usuario no autenticado"))
+                    return@get
+                }
+
+                val barberId = call.parameters["barberId"]?.toIntOrNull()
+                if (barberId == null) {
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("ID de barbero inválido"))
+                    return@get
+                }
+
+                val date = call.request.queryParameters["date"]
+                if (date.isNullOrBlank()) {
+                    call.respond(
+                        HttpStatusCode.BadRequest,
+                        ErrorResponse("Parámetro 'date' requerido (formato YYYY-MM-DD)")
+                    )
+                    return@get
+                }
+
+                val result = appService.getBarberAvailableHours(barberId, date)
+
+                result.fold(
+                    onSuccess = { availability ->
+                        call.respond(HttpStatusCode.OK, availability)
+                    },
+                    onFailure = { exception ->
+                        call.respond(
+                            HttpStatusCode.BadRequest,
+                            ErrorResponse(exception.message ?: "Error al obtener disponibilidad")
+                        )
+                    }
+                )
+            }
+        }
+
+        route("/api/barbers/{barberId}/bookings") {
+            get {
+                val principal = call.principal<JWTPrincipal>()
+                val currentUserId = principal?.getClaim("userId", Int::class)
+                val isAdmin = principal?.getClaim("isAdmin", Boolean::class) ?: false
+
+                if (currentUserId == null) {
+                    call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Usuario no autenticado"))
+                    return@get
+                }
+
+                val barberId = call.parameters["barberId"]?.toIntOrNull()
+                if (barberId == null) {
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("ID de barbero inválido"))
+                    return@get
+                }
+
+                if (currentUserId != barberId && !isAdmin) {
+                    call.respond(
+                        HttpStatusCode.Forbidden,
+                        ErrorResponse("No tienes permiso para ver las citas de este barbero")
+                    )
+                    return@get
+                }
+
+                val bookings = appService.getBookingsByBarber(barberId)
+                call.respond(ListResponse(data = bookings))
+            }
+        }
+
+        route("/api/admin/remove-admin") {
+            post {
+                val principal = call.principal<JWTPrincipal>()
+                val isAdmin = principal?.getClaim("isAdmin", Boolean::class) ?: false
+
+                if (!isAdmin) {
+                    call.respond(
+                        HttpStatusCode.Forbidden,
+                        ErrorResponse("Solo administradores pueden realizar esta acción")
+                    )
+                    return@post
+                }
+
+                try {
+                    val request = call.receive<RemoveAdminRequest>()
+
+                    if (request.userId <= 0) {
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse("ID de usuario inválido"))
+                        return@post
+                    }
+
+                    val currentUserId = principal?.getClaim("userId", Int::class)
+                    if (currentUserId == request.userId) {
+                        call.respond(
+                            HttpStatusCode.BadRequest,
+                            ErrorResponse("No puedes quitarte tus propios privilegios de administrador")
+                        )
+                        return@post
+                    }
+
+                    val result = appService.removeUserAdmin(request.userId)
+
+                    result.fold(
+                        onSuccess = { _ ->
+                            call.respond(
+                                HttpStatusCode.OK,
+                                SuccessResponse(message = "Privilegios de administrador removidos exitosamente")
+                            )
+                        },
+                        onFailure = { exception ->
+                            when (exception.message) {
+                                "Usuario no encontrado" ->
+                                    call.respond(HttpStatusCode.NotFound, ErrorResponse(exception.message!!))
+
+                                "No puedes quitar el último administrador del sistema" ->
+                                    call.respond(HttpStatusCode.BadRequest, ErrorResponse(exception.message!!))
+
+                                else ->
+                                    call.respond(
+                                        HttpStatusCode.BadRequest,
+                                        ErrorResponse(exception.message ?: "Error al remover privilegios")
+                                    )
+                            }
+                        }
+                    )
+                } catch (e: Exception) {
+                    call.respond(
+                        HttpStatusCode.BadRequest,
+                        ErrorResponse("Formato de request inválido: ${e.message}")
+                    )
+                }
+            }
+        }
+
         route("/api/appointments") {
-            // Próxima cita
             get("/next") {
                 val principal = call.principal<JWTPrincipal>()
                 val userId = principal?.getClaim("userId", Int::class)
@@ -79,7 +430,6 @@ fun Route.appRoutes() {
                 }
             }
 
-            // Últimas 3 citas pasadas
             get("/past") {
                 val principal = call.principal<JWTPrincipal>()
                 val userId = principal?.getClaim("userId", Int::class)
@@ -93,7 +443,6 @@ fun Route.appRoutes() {
                 call.respond(ListResponse(data = pastAppointments))
             }
 
-            // Crear nueva cita
             post {
                 val principal = call.principal<JWTPrincipal>()
                 val userId = principal?.getClaim("userId", Int::class)
@@ -135,7 +484,6 @@ fun Route.appRoutes() {
                 }
             }
 
-            // Actualizar cita específica
             put("/{id}") {
                 val principal = call.principal<JWTPrincipal>()
                 val userId = principal?.getClaim("userId", Int::class)
@@ -155,7 +503,10 @@ fun Route.appRoutes() {
                     val request = call.receive<UpdateBookingRequest>()
 
                     if (request.date == null && request.time == null && request.status == null) {
-                        call.respond(HttpStatusCode.BadRequest, ErrorResponse("Debe proporcionar al menos un campo para actualizar"))
+                        call.respond(
+                            HttpStatusCode.BadRequest,
+                            ErrorResponse("Debe proporcionar al menos un campo para actualizar")
+                        )
                         return@put
                     }
 
@@ -190,7 +541,6 @@ fun Route.appRoutes() {
                 }
             }
 
-            // Eliminar cita
             delete("/{id}") {
                 val principal = call.principal<JWTPrincipal>()
                 val userId = principal?.getClaim("userId", Int::class)
@@ -232,9 +582,7 @@ fun Route.appRoutes() {
             }
         }
 
-        // Gestión de productos (solo admin)
         route("/api/admin/products") {
-            // Crear producto (solo admin)
             post {
                 val principal = call.principal<JWTPrincipal>()
                 val isAdmin = principal?.getClaim("isAdmin", Boolean::class) ?: false
@@ -281,13 +629,15 @@ fun Route.appRoutes() {
                 }
             }
 
-            // Actualizar producto (solo admin)
             put("/{id}") {
                 val principal = call.principal<JWTPrincipal>()
                 val isAdmin = principal?.getClaim("isAdmin", Boolean::class) ?: false
 
                 if (!isAdmin) {
-                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Solo administradores pueden actualizar productos"))
+                    call.respond(
+                        HttpStatusCode.Forbidden,
+                        ErrorResponse("Solo administradores pueden actualizar productos")
+                    )
                     return@put
                 }
 
@@ -302,8 +652,12 @@ fun Route.appRoutes() {
 
                     if (request.name == null && request.description == null && request.price == null &&
                         request.image == null && request.available == null && request.points == null &&
-                        request.categoryId == null) {
-                        call.respond(HttpStatusCode.BadRequest, ErrorResponse("Debe proporcionar al menos un campo para actualizar"))
+                        request.categoryId == null
+                    ) {
+                        call.respond(
+                            HttpStatusCode.BadRequest,
+                            ErrorResponse("Debe proporcionar al menos un campo para actualizar")
+                        )
                         return@put
                     }
 
@@ -338,13 +692,15 @@ fun Route.appRoutes() {
                 }
             }
 
-            // Eliminar producto (solo admin)
             delete("/{id}") {
                 val principal = call.principal<JWTPrincipal>()
                 val isAdmin = principal?.getClaim("isAdmin", Boolean::class) ?: false
 
                 if (!isAdmin) {
-                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Solo administradores pueden eliminar productos"))
+                    call.respond(
+                        HttpStatusCode.Forbidden,
+                        ErrorResponse("Solo administradores pueden eliminar productos")
+                    )
                     return@delete
                 }
 
@@ -380,4 +736,8 @@ fun Route.appRoutes() {
             }
         }
     }
+}
+
+private fun isValidEmail(email: String): Boolean {
+    return email.matches(Regex("^[A-Za-z0-9+_.-]+@(.+)$"))
 }

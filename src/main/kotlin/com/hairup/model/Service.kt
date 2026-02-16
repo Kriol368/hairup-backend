@@ -5,6 +5,7 @@ import org.ktorm.schema.*
 
 interface Service : Entity<Service> {
     companion object : Entity.Factory<Service>()
+
     val id: Int
     var name: String
     var description: String?

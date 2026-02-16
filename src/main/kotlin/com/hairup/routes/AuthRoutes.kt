@@ -28,7 +28,10 @@ fun Route.authRoutes() {
                         call.respond(HttpStatusCode.Created, authResponse)
                     },
                     onFailure = { exception ->
-                        call.respond(HttpStatusCode.BadRequest, ErrorResponse(exception.message ?: "Registration failed"))
+                        call.respond(
+                            HttpStatusCode.BadRequest,
+                            ErrorResponse(exception.message ?: "Registration failed")
+                        )
                     }
                 )
             } catch (e: Exception) {

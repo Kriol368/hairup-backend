@@ -2,8 +2,6 @@ package com.hairup.model
 
 import kotlinx.serialization.Serializable
 
-// Respuestas para los endpoints que necesitas
-
 @Serializable
 data class NextAppointmentResponse(
     val id: Int, val serviceName: String, val date: String, val time: String
@@ -16,7 +14,13 @@ data class PastAppointmentResponse(
 
 @Serializable
 data class UserProfileResponse(
-    val id: Int, val name: String, val email: String, val xp: Int, val levelName: String, val levelId: Int, val phone: String
+    val id: Int,
+    val name: String,
+    val email: String,
+    val xp: Int,
+    val levelName: String,
+    val levelId: Int,
+    val phone: String
 )
 
 @Serializable
@@ -42,8 +46,62 @@ data class ServiceResponse(
     val id: Int, val name: String, val description: String?, val price: Double, val duration: Int, val xpReward: Int
 )
 
-// Para respuestas con listas
 @Serializable
 data class ListResponse<T>(
     val success: Boolean = true, val data: List<T>
+)
+
+@Serializable
+data class AdminUserResponse(
+    val id: Int,
+    val name: String,
+    val email: String,
+    val phone: String?
+)
+
+@Serializable
+data class AllUsersResponse(
+    val id: Int,
+    val name: String,
+    val email: String,
+    val phone: String?,
+    val xp: Int,
+    val admin: Boolean,
+    val levelId: Int,
+    val created: String
+)
+
+@Serializable
+data class SuccessResponse(
+    val success: Boolean = true,
+    val message: String,
+    val id: Int? = null
+)
+
+@Serializable
+data class BarberAvailabilityResponse(
+    val barberId: Int,
+    val barberName: String,
+    val date: String,
+    val availableSlots: List<TimeSlot>
+)
+
+@Serializable
+data class TimeSlot(
+    val time: String,
+    val available: Boolean,
+    val serviceId: Int? = null,
+    val serviceName: String? = null,
+    val duration: Int? = null
+)
+
+@Serializable
+data class AppointmentDetailResponse(
+    val id: Int,
+    val serviceName: String,
+    val clientName: String,
+    val clientPhone: String?,
+    val date: String,
+    val time: String,
+    val status: Int
 )

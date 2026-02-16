@@ -5,6 +5,7 @@ import org.ktorm.schema.*
 
 interface Level : Entity<Level> {
     companion object : Entity.Factory<Level>()
+
     val id: Int
     var name: String
     var required: Int

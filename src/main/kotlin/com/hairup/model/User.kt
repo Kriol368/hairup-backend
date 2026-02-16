@@ -6,6 +6,7 @@ import java.time.LocalDate
 
 interface User : Entity<User> {
     companion object : Entity.Factory<User>()
+
     var id: Int
     var email: String
     var password: String

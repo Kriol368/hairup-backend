@@ -43,11 +43,13 @@ data class ErrorResponse(
 data class MessageResponse(
     val message: String
 )
+
 @Serializable
 data class CreateBookingRequest(
     val serviceId: Int,
     val date: String,
-    val time: String
+    val time: String,
+    val barberId: Int? = null
 )
 
 @Serializable
@@ -79,9 +81,27 @@ data class UpdateProductRequest(
     val categoryId: Int? = null
 )
 
+
 @Serializable
-data class SuccessResponse(
-    val success: Boolean = true,
-    val message: String,
-    val id: Int? = null
+data class MakeAdminRequest(
+    val userId: Int
 )
+
+@Serializable
+data class RemoveAdminRequest(
+    val userId: Int
+)
+
+@Serializable
+data class UpdateProfileRequest(
+    val name: String? = null,
+    val email: String? = null,
+    val phone: String? = null
+)
+
+@Serializable
+data class ChangePasswordRequest(
+    val currentPassword: String,
+    val newPassword: String
+)
+

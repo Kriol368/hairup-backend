@@ -5,6 +5,7 @@ import org.ktorm.schema.*
 
 interface Category : Entity<Category> {
     companion object : Entity.Factory<Category>()
+
     val id: Int
     var name: String
 }

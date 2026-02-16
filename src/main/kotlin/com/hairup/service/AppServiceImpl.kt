@@ -2,6 +2,7 @@ package com.hairup.service
 
 import com.hairup.config.DatabaseConfig
 import com.hairup.model.*
+import com.hairup.utils.PasswordHasher
 import org.ktorm.database.Database
 import org.ktorm.dsl.*
 import java.time.LocalDate
@@ -39,7 +40,7 @@ class AppServiceImpl : AppService {
         }.firstOrNull()
     }
 
-    override suspend fun getPastAppointments(userId: Int,): List<PastAppointmentResponse> {
+    override suspend fun getPastAppointments(userId: Int): List<PastAppointmentResponse> {
         val today = LocalDate.now()
         return database.from(Bookings).innerJoin(Services, on = Bookings.serviceId eq Services.id).select().where {
             (Bookings.userId eq userId) and (Bookings.date less today) and (Bookings.status eq 1)
@@ -96,31 +97,97 @@ class AppServiceImpl : AppService {
 
     override suspend fun createBooking(userId: Int, request: CreateBookingRequest): Result<Int> {
         return try {
-            val serviceExists =
-                database.from(Services).select().where { Services.id eq request.serviceId }.totalRecordsInAllPages > 0
-            if (!serviceExists) {
+            val serviceInfo = database.from(Services)
+                .select(Services.duration, Services.name)
+                .where { Services.id eq request.serviceId }
+                .map { row ->
+                    Pair(row[Services.duration]!!, row[Services.name]!!)
+                }
+                .firstOrNull()
+
+            if (serviceInfo == null) {
                 return Result.failure(Exception("El servicio no existe"))
             }
+
+            val serviceDuration = serviceInfo.first
+
             val bookingDate = LocalDate.parse(request.date)
             val bookingTime = LocalTime.parse(request.time)
+
             if (bookingDate.isBefore(LocalDate.now())) {
                 return Result.failure(Exception("No puedes agendar citas en fechas pasadas"))
             }
+
             if (!isBookingAvailable(bookingDate, bookingTime, request.serviceId)) {
                 return Result.failure(Exception("El horario no está disponible"))
             }
+
+            val finalBarberId: Int? = request.barberId
+
+            if (request.barberId != null) {
+                val isBarberValid = database.from(Users)
+                    .select()
+                    .where { (Users.id eq request.barberId) and (Users.admin eq true) }
+                    .totalRecordsInAllPages > 0
+
+                if (!isBarberValid) {
+                    return Result.failure(Exception("El barbero especificado no existe o no es administrador"))
+                }
+
+                val barberBookings = database.from(Bookings)
+                    .innerJoin(Services, on = Bookings.serviceId eq Services.id)
+                    .select(
+                        Bookings.time,
+                        Services.duration
+                    )
+                    .where {
+                        (Bookings.barberId eq request.barberId) and
+                                (Bookings.date eq bookingDate) and
+                                (Bookings.status eq 0)
+                    }
+                    .map { row ->
+                        Pair(
+                            row[Bookings.time]!!,
+                            row[Services.duration]!!
+                        )
+                    }
+
+                val newBookingSlots = getSlotsForDuration(bookingTime.toString(), serviceDuration, 30)
+
+                var hasConflict = false
+                var conflictingService = ""
+
+                for ((existingTime, existingDuration) in barberBookings) {
+                    val existingSlots = getSlotsForDuration(existingTime.toString(), existingDuration, 30)
+
+                    val intersection = newBookingSlots.intersect(existingSlots.toSet())
+                    if (intersection.isNotEmpty()) {
+                        hasConflict = true
+                        conflictingService = "conflicto con cita existente"
+                        break
+                    }
+                }
+
+                if (hasConflict) {
+                    return Result.failure(Exception("El barbero no está disponible en ese horario ($conflictingService)"))
+                }
+            }
+
             val bookingId = database.insertAndGenerateKey(Bookings) {
                 set(Bookings.userId, userId)
                 set(Bookings.serviceId, request.serviceId)
                 set(Bookings.date, bookingDate)
                 set(Bookings.time, bookingTime)
                 set(Bookings.status, 0)
+                set(Bookings.barberId, finalBarberId)
             } as Int
+
             Result.success(bookingId)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
+
 
     override suspend fun updateBooking(
         bookingId: Int,
@@ -129,8 +196,8 @@ class AppServiceImpl : AppService {
     ): Result<Boolean> {
         return try {
             val isPendingBooking = database.from(Bookings).select().where {
-                    (Bookings.id eq bookingId) and (Bookings.userId eq userId) and (Bookings.status eq 0)
-                }.totalRecordsInAllPages > 0
+                (Bookings.id eq bookingId) and (Bookings.userId eq userId) and (Bookings.status eq 0)
+            }.totalRecordsInAllPages > 0
 
             if (!isPendingBooking) {
                 return Result.failure(Exception("Cita no encontrada, no tienes permisos o no está pendiente"))
@@ -266,5 +333,335 @@ class AppServiceImpl : AppService {
             (Bookings.date eq date) and (Bookings.time eq time) and (Bookings.serviceId eq serviceId) and (Bookings.status eq 0)
         }.totalRecordsInAllPages
         return existingBookings == 0
+    }
+
+    override suspend fun getAdminUsers(): List<AdminUserResponse> {
+        return database.from(Users)
+            .select()
+            .where { Users.admin eq true }
+            .orderBy(Users.name.asc())
+            .map { row ->
+                AdminUserResponse(
+                    id = row[Users.id]!!,
+                    name = row[Users.name]!!,
+                    email = row[Users.email]!!,
+                    phone = row[Users.phone]
+                )
+            }
+    }
+
+    override suspend fun getAllUsers(): List<AllUsersResponse> {
+        return database.from(Users)
+            .select()
+            .orderBy(Users.name.asc())
+            .map { row ->
+                AllUsersResponse(
+                    id = row[Users.id]!!,
+                    name = row[Users.name]!!,
+                    email = row[Users.email]!!,
+                    phone = row[Users.phone],
+                    xp = row[Users.xp]!!,
+                    admin = row[Users.admin]!!,
+                    levelId = row[Users.levelId]!!,
+                    created = row[Users.created]!!.toString()
+                )
+            }
+    }
+
+    override suspend fun makeUserAdmin(userId: Int): Result<Boolean> {
+        return try {
+            val userExists = database.from(Users)
+                .select()
+                .where { Users.id eq userId }
+                .totalRecordsInAllPages > 0
+
+            if (!userExists) {
+                return Result.failure(Exception("Usuario no encontrado"))
+            }
+
+            val rowsUpdated = database.update(Users) {
+                set(Users.admin, true)
+                where { Users.id eq userId }
+            }
+
+            if (rowsUpdated > 0) {
+                Result.success(true)
+            } else {
+                Result.failure(Exception("No se pudo actualizar el usuario"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun removeUserAdmin(userId: Int): Result<Boolean> {
+        return try {
+            val userExists = database.from(Users)
+                .select()
+                .where { Users.id eq userId }
+                .totalRecordsInAllPages > 0
+
+            if (!userExists) {
+                return Result.failure(Exception("Usuario no encontrado"))
+            }
+
+            val adminCount = database.from(Users)
+                .select()
+                .where { Users.admin eq true }
+                .totalRecordsInAllPages
+
+            val isTargetAdmin = database.from(Users)
+                .select()
+                .where { (Users.id eq userId) and (Users.admin eq true) }
+                .totalRecordsInAllPages > 0
+
+            if (isTargetAdmin && adminCount <= 1) {
+                return Result.failure(Exception("No puedes quitar el último administrador del sistema"))
+            }
+
+            val rowsUpdated = database.update(Users) {
+                set(Users.admin, false)
+                where { Users.id eq userId }
+            }
+
+            if (rowsUpdated > 0) {
+                Result.success(true)
+            } else {
+                Result.failure(Exception("No se pudo actualizar el usuario"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun updateUserProfile(userId: Int, request: UpdateProfileRequest): Result<UserProfileResponse> {
+        return try {
+            val userExists = database.from(Users)
+                .select()
+                .where { Users.id eq userId }
+                .totalRecordsInAllPages > 0
+
+            if (!userExists) {
+                return Result.failure(Exception("Usuario no encontrado"))
+            }
+
+            if (!request.email.isNullOrBlank()) {
+                val emailExists = database.from(Users)
+                    .select()
+                    .where { (Users.email eq request.email) and (Users.id neq userId) }
+                    .totalRecordsInAllPages > 0
+
+                if (emailExists) {
+                    return Result.failure(Exception("El email ya está siendo utilizado por otro usuario"))
+                }
+            }
+
+            val updateBuilder = database.update(Users) {
+                request.name?.let { set(Users.name, it) }
+                request.email?.let { set(Users.email, it) }
+                request.phone?.let { set(Users.phone, it) }
+
+                where { Users.id eq userId }
+            }
+
+            if (updateBuilder == 0) {
+                return Result.failure(Exception("No se pudo actualizar el perfil"))
+            }
+
+            val updatedProfile = getUserProfile(userId)
+            if (updatedProfile == null) {
+                Result.failure(Exception("Perfil actualizado pero no se pudo recuperar la información"))
+            } else {
+                Result.success(updatedProfile)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun changePassword(userId: Int, request: ChangePasswordRequest): Result<Boolean> {
+        return try {
+            if (request.newPassword.isBlank()) {
+                return Result.failure(Exception("La nueva contraseña no puede estar vacía"))
+            }
+
+            if (request.newPassword.length < 6) {
+                return Result.failure(Exception("La nueva contraseña debe tener al menos 6 caracteres"))
+            }
+
+            if (request.currentPassword == request.newPassword) {
+                return Result.failure(Exception("La nueva contraseña debe ser diferente a la actual"))
+            }
+
+            val userRow = database.from(Users)
+                .select(Users.password)
+                .where { Users.id eq userId }
+                .map { row ->
+                    row[Users.password]
+                }
+                .firstOrNull()
+
+            if (userRow == null) {
+                return Result.failure(Exception("Usuario no encontrado"))
+            }
+
+            if (!PasswordHasher.verifyPassword(request.currentPassword, userRow)) {
+                return Result.failure(Exception("Contraseña actual incorrecta"))
+            }
+
+            val hashedNewPassword = PasswordHasher.hashPassword(request.newPassword)
+
+            val rowsUpdated = database.update(Users) {
+                set(Users.password, hashedNewPassword)
+                where { Users.id eq userId }
+            }
+
+            if (rowsUpdated > 0) {
+                Result.success(true)
+            } else {
+                Result.failure(Exception("No se pudo cambiar la contraseña"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+
+    override suspend fun getBarberAvailableHours(barberId: Int, date: String): Result<BarberAvailabilityResponse> {
+        return try {
+            val barber = database.from(Users)
+                .select(Users.name)
+                .where { (Users.id eq barberId) and (Users.admin eq true) }
+                .map { row -> row[Users.name] }
+                .firstOrNull()
+
+            if (barber == null) {
+                return Result.failure(Exception("Barbero no encontrado o no es administrador"))
+            }
+
+            val bookingDate = LocalDate.parse(date)
+
+            val allSlots = generateTimeSlots("09:00", "18:00", 30)
+
+            val barberBookings = database.from(Bookings)
+                .innerJoin(Services, on = Bookings.serviceId eq Services.id)
+                .select(
+                    Bookings.time,
+                    Services.id,
+                    Services.name,
+                    Services.duration
+                )
+                .where {
+                    (Bookings.barberId eq barberId) and
+                            (Bookings.date eq bookingDate) and
+                            (Bookings.status eq 0)
+                }
+                .map { row ->
+                    BookingInfo(
+                        time = row[Bookings.time]!!,
+                        serviceId = row[Services.id]!!,
+                        serviceName = row[Services.name]!!,
+                        duration = row[Services.duration]!!
+                    )
+                }
+
+            val bookedSlots = mutableSetOf<String>()
+
+            barberBookings.forEach { booking ->
+                val startTime = booking.time
+                val duration = booking.duration
+
+                val slotsToBook = getSlotsForDuration(startTime.toString(), duration, 30)
+                bookedSlots.addAll(slotsToBook)
+            }
+
+            val availableSlots = allSlots.map { slotTime ->
+                val isBooked = bookedSlots.contains(slotTime)
+                val booking = if (isBooked) {
+                    barberBookings.find { booking ->
+                        val slots = getSlotsForDuration(booking.time.toString(), booking.duration, 30)
+                        slots.contains(slotTime)
+                    }
+                } else null
+
+                TimeSlot(
+                    time = slotTime,
+                    available = !isBooked,
+                    serviceId = booking?.serviceId,
+                    serviceName = booking?.serviceName,
+                    duration = booking?.duration
+                )
+            }
+
+            val response = BarberAvailabilityResponse(
+                barberId = barberId,
+                barberName = barber,
+                date = date,
+                availableSlots = availableSlots
+            )
+
+            Result.success(response)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private data class BookingInfo(
+        val time: LocalTime,
+        val serviceId: Int,
+        val serviceName: String,
+        val duration: Int
+    )
+
+    private fun generateTimeSlots(startTime: String, endTime: String, intervalMinutes: Int): List<String> {
+        val slots = mutableListOf<String>()
+        var current = LocalTime.parse(startTime)
+        val end = LocalTime.parse(endTime)
+
+        while (current.isBefore(end) || current.equals(end)) {
+            slots.add(current.toString())
+            current = current.plusMinutes(intervalMinutes.toLong())
+        }
+
+        return slots
+    }
+
+    private fun getSlotsForDuration(startTime: String, durationMinutes: Int, intervalMinutes: Int): List<String> {
+        val slots = mutableListOf<String>()
+        var current = LocalTime.parse(startTime)
+        val endTime = current.plusMinutes(durationMinutes.toLong())
+
+        while (current.isBefore(endTime)) {
+            slots.add(current.toString())
+            current = current.plusMinutes(intervalMinutes.toLong())
+        }
+
+        return slots
+    }
+
+
+    override suspend fun getBookingsByBarber(barberId: Int): List<AppointmentDetailResponse> {
+        val today = LocalDate.now()
+
+        return database.from(Bookings)
+            .innerJoin(Services, on = Bookings.serviceId eq Services.id)
+            .innerJoin(Users, on = Bookings.userId eq Users.id)
+            .select()
+            .where {
+                (Bookings.barberId eq barberId) and
+                        (Bookings.date greaterEq today)
+            }
+            .orderBy(Bookings.date.asc(), Bookings.time.asc())
+            .map { row ->
+                AppointmentDetailResponse(
+                    id = row[Bookings.id]!!,
+                    serviceName = row[Services.name]!!,
+                    clientName = row[Users.name]!!,
+                    clientPhone = row[Users.phone],
+                    date = row[Bookings.date]!!.toString(),
+                    time = row[Bookings.time]!!.toString(),
+                    status = row[Bookings.status]!!
+                )
+            }
     }
 }
