@@ -85,6 +85,7 @@ class AuthServiceImpl : AuthService {
             password = row[Users.password]!!
             name = row[Users.name]!!
             xp = row[Users.xp]!!
+            points = row[Users.points]!!
             admin = row[Users.admin]!!
             phone = row[Users.phone]
             created = row[Users.created]!!
