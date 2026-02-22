@@ -4,7 +4,14 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class NextAppointmentResponse(
-    val id: Int, val serviceName: String, val date: String, val time: String
+    val id: Int,
+    val serviceName: String,
+    val serviceId: Int,
+    val date: String,
+    val time: String,
+    val stylistName: String,
+    val stylistId: Int,
+    val status: Int
 )
 
 @Serializable

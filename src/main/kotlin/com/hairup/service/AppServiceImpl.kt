@@ -28,16 +28,30 @@ class AppServiceImpl : AppService {
 
     override suspend fun getNextAppointment(userId: Int): NextAppointmentResponse? {
         val today = LocalDate.now()
-        return database.from(Bookings).innerJoin(Services, on = Bookings.serviceId eq Services.id).select().where {
-            (Bookings.userId eq userId) and (Bookings.date greaterEq today) and (Bookings.status eq 0)
-        }.orderBy(Bookings.date.asc(), Bookings.time.asc()).limit(1).map { row ->
-            NextAppointmentResponse(
-                id = row[Bookings.id]!!,
-                serviceName = row[Services.name]!!,
-                date = row[Bookings.date]!!.toString(),
-                time = row[Bookings.time]!!.toString()
-            )
-        }.firstOrNull()
+        return database.from(Bookings)
+            .innerJoin(Services, on = Bookings.serviceId eq Services.id)
+            .innerJoin(Users, on = Bookings.barberId eq Users.id)
+            .select(Bookings.columns + Services.columns + Users.columns)
+            .where {
+                (Bookings.userId eq userId) and
+                        (Bookings.date greaterEq today) and
+                        (Bookings.status eq 0)
+            }
+            .orderBy(Bookings.date.asc(), Bookings.time.asc())
+            .limit(1)
+            .map { row ->
+                NextAppointmentResponse(
+                    id = row[Bookings.id]!!,
+                    serviceName = row[Services.name]!!,
+                    serviceId = row[Bookings.serviceId]!!,
+                    date = row[Bookings.date]!!.toString(),
+                    time = row[Bookings.time]!!.toString(),
+                    stylistName = row[Users.name]!!,
+                    stylistId = row[Users.id]!!,
+                    status = row[Bookings.status]!!
+                )
+            }
+            .firstOrNull()
     }
 
     override suspend fun getPastAppointments(userId: Int): List<PastAppointmentResponse> {
