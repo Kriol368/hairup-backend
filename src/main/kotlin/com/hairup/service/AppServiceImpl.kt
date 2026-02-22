@@ -889,4 +889,15 @@ class AppServiceImpl : AppService {
             }
         }
     }
+    override suspend fun getAllCategories(): List<CategoryResponse> {
+        return database.from(Categories)
+            .select()
+            .orderBy(Categories.name.asc())
+            .map { row ->
+                CategoryResponse(
+                    id = row[Categories.id]!!,
+                    name = row[Categories.name]!!
+                )
+            }
+    }
 }

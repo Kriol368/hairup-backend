@@ -142,3 +142,15 @@ data class RedeemResponse(
     val message: String,
     val newPoints: Int? = null
 )
+
+@Serializable
+data class CategoryResponse(
+    val id: Int,
+    val name: String
+)
+
+@Serializable
+data class CategoriesResponse(
+    val success: Boolean = true,
+    val data: List<CategoryResponse>
+)

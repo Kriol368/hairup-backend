@@ -30,4 +30,5 @@ interface AppService {
     suspend fun redeemReward(userId: Int, request: RedeemRequest): Result<RedeemResponse>
     suspend fun getAllRewards(): List<RewardResponse>
     suspend fun addXpAndPoints(userId: Int, xpToAdd: Int): Result<Boolean>
+    suspend fun getAllCategories(): List<CategoryResponse>
 }

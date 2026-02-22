@@ -748,6 +748,21 @@ fun Route.appRoutes() {
             }
         }
 
+        route("/api/categories") {
+            get {
+                val principal = call.principal<JWTPrincipal>()
+                val userId = principal?.getClaim("userId", Int::class)
+
+                if (userId == null) {
+                    call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Usuario no autenticado"))
+                    return@get
+                }
+
+                val categories = appService.getAllCategories()
+                call.respond(CategoriesResponse(data = categories))
+            }
+        }
+
         // ===== REWARDS ENDPOINTS =====
         route("/api/rewards") {
             // Obtener todas las recompensas disponibles
