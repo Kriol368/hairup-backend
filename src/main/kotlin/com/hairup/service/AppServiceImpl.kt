@@ -19,6 +19,7 @@ class AppServiceImpl : AppService {
                     name = row[Users.name]!!,
                     email = row[Users.email]!!,
                     xp = row[Users.xp]!!,
+                    points = row[Users.points]!!,
                     levelName = row[Levels.name]!!,
                     levelId = row[Users.levelId]!!,
                     phone = row[Users.phone]!!
@@ -453,6 +454,7 @@ class AppServiceImpl : AppService {
                     email = row[Users.email]!!,
                     phone = row[Users.phone],
                     xp = row[Users.xp]!!,
+                    points = row[Users.points]!!,
                     admin = row[Users.admin]!!,
                     levelId = row[Users.levelId]!!,
                     created = row[Users.created]!!.toString()
@@ -755,5 +757,136 @@ class AppServiceImpl : AppService {
                     status = row[Bookings.status]!!
                 )
             }
+    }
+
+    override suspend fun getAllRewards(): List<RewardResponse> {
+        return database.from(Rewards)
+            .select()
+            .where { Rewards.available eq true }
+            .orderBy(Rewards.pointsCost.asc())
+            .map { row ->
+                RewardResponse(
+                    id = row[Rewards.id]!!,
+                    name = row[Rewards.name]!!,
+                    description = row[Rewards.description],
+                    pointsCost = row[Rewards.pointsCost]!!,
+                    minLevelId = row[Rewards.minLevelId]!!,
+                    available = row[Rewards.available]!!
+                )
+            }
+    }
+
+    override suspend fun redeemReward(userId: Int, request: RedeemRequest): Result<RedeemResponse> {
+        return try {
+            val user = database.from(Users)
+                .select(Users.xp, Users.points, Users.levelId)
+                .where { Users.id eq userId }
+                .map { row ->
+                    Triple(row[Users.xp]!!, row[Users.points]!!, row[Users.levelId]!!)
+                }
+                .firstOrNull()
+
+            if (user == null) {
+                return Result.failure(Exception("Usuario no encontrado"))
+            }
+
+            val (userXp, userPoints, userLevelId) = user
+
+            val reward = database.from(Rewards)
+                .select()
+                .where { Rewards.id eq request.rewardId }
+                .map { row ->
+                    RewardResponse(
+                        id = row[Rewards.id]!!,
+                        name = row[Rewards.name]!!,
+                        description = row[Rewards.description],
+                        pointsCost = row[Rewards.pointsCost]!!,
+                        minLevelId = row[Rewards.minLevelId]!!,
+                        available = row[Rewards.available]!!
+                    )
+                }
+                .firstOrNull()
+
+            if (reward == null) {
+                return Result.failure(Exception("Recompensa no encontrada"))
+            }
+
+            if (!reward.available) {
+                return Result.failure(Exception("Esta recompensa no está disponible"))
+            }
+
+            if (userLevelId < reward.minLevelId) {
+                return Result.failure(Exception("Necesitas nivel ${reward.minLevelId} para canjear esta recompensa"))
+            }
+
+            if (userPoints < reward.pointsCost) {
+                return Result.failure(Exception("No tienes suficientes puntos. Te faltan ${reward.pointsCost - userPoints} puntos"))
+            }
+
+            val newPoints = userPoints - reward.pointsCost
+            val rowsUpdated = database.update(Users) {
+                set(Users.points, newPoints)
+                where { Users.id eq userId }
+            }
+
+            if (rowsUpdated == 0) {
+                return Result.failure(Exception("Error al actualizar puntos"))
+            }
+
+            Result.success(
+                RedeemResponse(
+                    success = true,
+                    message = "¡Recompensa canjeada con éxito!",
+                    newPoints = newPoints
+                )
+            )
+
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun addXpAndPoints(userId: Int, xpToAdd: Int): Result<Boolean> {
+        return try {
+            val rowsUpdated = database.update(Users) {
+                set(Users.xp, Users.xp + xpToAdd)
+                set(Users.points, Users.points + xpToAdd)
+                where { Users.id eq userId }
+            }
+
+            if (rowsUpdated > 0) {
+                updateUserLevel(userId)
+                Result.success(true)
+            } else {
+                Result.failure(Exception("Usuario no encontrado"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private suspend fun updateUserLevel(userId: Int) {
+        val user = database.from(Users)
+            .select(Users.xp, Users.levelId)
+            .where { Users.id eq userId }
+            .map { row -> Pair(row[Users.xp]!!, row[Users.levelId]!!) }
+            .firstOrNull() ?: return
+
+        val (userXp, currentLevelId) = user
+
+        val newLevelId = database.from(Levels)
+            .select(Levels.id)
+            .where { Levels.required lessEq userXp }
+            .orderBy(Levels.required.desc())
+            .limit(1)
+            .map { it[Levels.id]!! }
+            .firstOrNull() ?: currentLevelId
+
+        if (newLevelId != currentLevelId) {
+            database.update(Users) {
+                set(Users.levelId, newLevelId)
+                where { Users.id eq userId }
+            }
+        }
     }
 }

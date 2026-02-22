@@ -97,6 +97,7 @@ class AuthServiceImpl : AuthService {
             email = this.email,
             name = this.name,
             xp = this.xp,
+            points = this.points,
             admin = this.admin,
             phone = this.phone,
             created = this.created.toString(),

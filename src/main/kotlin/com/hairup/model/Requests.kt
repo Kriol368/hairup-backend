@@ -22,17 +22,7 @@ data class AuthResponse(
     val user: UserResponse
 )
 
-@Serializable
-data class UserResponse(
-    val id: Int,
-    val email: String,
-    val name: String,
-    val xp: Int,
-    val admin: Boolean,
-    val phone: String?,
-    val created: String,
-    val levelId: Int
-)
+
 
 @Serializable
 data class ErrorResponse(
@@ -105,3 +95,7 @@ data class ChangePasswordRequest(
     val newPassword: String
 )
 
+@Serializable
+data class RedeemRequest(
+    val rewardId: Int
+)

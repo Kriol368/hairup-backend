@@ -22,6 +22,7 @@ data class UserProfileResponse(
     val name: String,
     val email: String,
     val xp: Int,
+    val points: Int,
     val levelName: String,
     val levelId: Int,
     val phone: String
@@ -64,12 +65,26 @@ data class AdminUserResponse(
 )
 
 @Serializable
+data class UserResponse(
+    val id: Int,
+    val email: String,
+    val name: String,
+    val xp: Int,
+    val points: Int,
+    val admin: Boolean,
+    val phone: String?,
+    val created: String,
+    val levelId: Int
+)
+
+@Serializable
 data class AllUsersResponse(
     val id: Int,
     val name: String,
     val email: String,
     val phone: String?,
     val xp: Int,
+    val points: Int,
     val admin: Boolean,
     val levelId: Int,
     val created: String
@@ -108,4 +123,22 @@ data class AppointmentDetailResponse(
     val date: String,
     val time: String,
     val status: Int
+)
+
+
+@Serializable
+data class RewardResponse(
+    val id: Int,
+    val name: String,
+    val description: String?,
+    val pointsCost: Int,
+    val minLevelId: Int,
+    val available: Boolean
+)
+
+@Serializable
+data class RedeemResponse(
+    val success: Boolean,
+    val message: String,
+    val newPoints: Int? = null
 )

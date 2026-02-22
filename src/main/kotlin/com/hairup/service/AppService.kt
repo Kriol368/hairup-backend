@@ -27,4 +27,7 @@ interface AppService {
     suspend fun changePassword(userId: Int, request: ChangePasswordRequest): Result<Boolean>
     suspend fun getBarberAvailableHours(barberId: Int, date: String): Result<BarberAvailabilityResponse>
     suspend fun getBookingsByBarber(barberId: Int): List<AppointmentDetailResponse>
+    suspend fun redeemReward(userId: Int, request: RedeemRequest): Result<RedeemResponse>
+    suspend fun getAllRewards(): List<RewardResponse>
+    suspend fun addXpAndPoints(userId: Int, xpToAdd: Int): Result<Boolean>
 }

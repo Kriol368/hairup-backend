@@ -747,6 +747,66 @@ fun Route.appRoutes() {
                 )
             }
         }
+
+        // ===== REWARDS ENDPOINTS =====
+        route("/api/rewards") {
+            // Obtener todas las recompensas disponibles
+            get {
+                val principal = call.principal<JWTPrincipal>()
+                val userId = principal?.getClaim("userId", Int::class)
+
+                if (userId == null) {
+                    call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Usuario no autenticado"))
+                    return@get
+                }
+
+                val rewards = appService.getAllRewards()
+                call.respond(ListResponse(data = rewards))
+            }
+
+            // Canjear una recompensa
+            post("/redeem") {
+                val principal = call.principal<JWTPrincipal>()
+                val userId = principal?.getClaim("userId", Int::class)
+
+                if (userId == null) {
+                    call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Usuario no autenticado"))
+                    return@post
+                }
+
+                try {
+                    val request = call.receive<RedeemRequest>()
+
+                    if (request.rewardId <= 0) {
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse("ID de recompensa inválido"))
+                        return@post
+                    }
+
+                    val result = appService.redeemReward(userId, request)
+
+                    result.fold(
+                        onSuccess = { response ->
+                            call.respond(HttpStatusCode.OK, response)
+                        },
+                        onFailure = { exception ->
+                            when (exception.message) {
+                                "Usuario no encontrado" ->
+                                    call.respond(HttpStatusCode.NotFound, ErrorResponse(exception.message!!))
+                                "Recompensa no encontrada" ->
+                                    call.respond(HttpStatusCode.NotFound, ErrorResponse(exception.message!!))
+                                else ->
+                                    call.respond(HttpStatusCode.BadRequest, ErrorResponse(exception.message ?: "Error al canjear recompensa"))
+                            }
+                        }
+                    )
+                } catch (e: Exception) {
+                    call.respond(
+                        HttpStatusCode.BadRequest,
+                        ErrorResponse("Formato de request inválido: ${e.message}")
+                    )
+                }
+            }
+        }
     }
 }
 

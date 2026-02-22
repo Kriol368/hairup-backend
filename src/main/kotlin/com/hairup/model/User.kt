@@ -12,6 +12,7 @@ interface User : Entity<User> {
     var password: String
     var name: String
     var xp: Int
+    var points: Int
     var admin: Boolean
     var phone: String?
     var created: LocalDate
@@ -24,6 +25,7 @@ object Users : Table<User>("user") {
     val password = text("password").bindTo { it.password }
     val name = text("name").bindTo { it.name }
     val xp = int("xp").bindTo { it.xp }
+    var points = int("points").bindTo { it.points }
     val admin = boolean("admin").bindTo { it.admin }
     val phone = text("phone").bindTo { it.phone }
     val created = date("created").bindTo { it.created }
