@@ -6,8 +6,9 @@ import java.time.LocalTime
 
 interface AppService {
     suspend fun getUserProfile(userId: Int): UserProfileResponse?
-    suspend fun getNextAppointment(userId: Int): NextAppointmentResponse?
-    suspend fun getPastAppointments(userId: Int): List<PastAppointmentResponse>
+    suspend fun getUserAppointments(userId: Int): List<AppointmentResponse>
+    suspend fun getNextAppointment(userId: Int): AppointmentResponse?
+    suspend fun getPastAppointments(userId: Int): List<AppointmentResponse>
     suspend fun getAllLevels(): List<LevelResponse>
     suspend fun getAllProducts(): List<ProductResponse>
     suspend fun getAllServices(): List<ServiceResponse>

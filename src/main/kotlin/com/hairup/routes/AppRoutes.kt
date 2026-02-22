@@ -412,6 +412,18 @@ fun Route.appRoutes() {
         }
 
         route("/api/appointments") {
+            get {
+                val principal = call.principal<JWTPrincipal>()
+                val userId = principal?.getClaim("userId", Int::class)
+
+                if (userId == null) {
+                    call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Usuario no autenticado"))
+                    return@get
+                }
+
+                val appointments = appService.getUserAppointments(userId)
+                call.respond(ListResponse(data = appointments))
+            }
             get("/next") {
                 val principal = call.principal<JWTPrincipal>()
                 val userId = principal?.getClaim("userId", Int::class)

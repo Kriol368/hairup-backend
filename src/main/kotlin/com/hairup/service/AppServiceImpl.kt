@@ -26,12 +26,60 @@ class AppServiceImpl : AppService {
             }.firstOrNull()
     }
 
-    override suspend fun getNextAppointment(userId: Int): NextAppointmentResponse? {
+    override suspend fun getUserAppointments(userId: Int): List<AppointmentResponse> {
+        return database.from(Bookings)
+            .innerJoin(Services, on = Bookings.serviceId eq Services.id)
+            .innerJoin(Users, on = Bookings.barberId eq Users.id)
+            .select(
+                Bookings.id,
+                Services.name,
+                Services.id,
+                Bookings.date,
+                Bookings.time,
+                Users.name,
+                Users.id,
+                Bookings.status,
+                Services.price,
+                Services.duration,
+                Services.xp
+            )
+            .where { Bookings.userId eq userId }
+            .orderBy(Bookings.date.desc(), Bookings.time.desc())
+            .map { row ->
+                AppointmentResponse(
+                    id = row[Bookings.id]!!,
+                    serviceName = row[Services.name]!!,
+                    serviceId = row[Services.id]!!,
+                    date = row[Bookings.date]!!.toString(),
+                    time = row[Bookings.time]!!.toString(),
+                    stylistName = row[Users.name]!!,
+                    stylistId = row[Users.id]!!,
+                    status = row[Bookings.status]!!,
+                    price = row[Services.price]!!,
+                    duration = row[Services.duration]!!,
+                    xpEarned = if (row[Bookings.status] == 1) row[Services.xp]!! else 0
+                )
+            }
+    }
+
+    override suspend fun getNextAppointment(userId: Int): AppointmentResponse? {
         val today = LocalDate.now()
         return database.from(Bookings)
             .innerJoin(Services, on = Bookings.serviceId eq Services.id)
             .innerJoin(Users, on = Bookings.barberId eq Users.id)
-            .select(Bookings.columns + Services.columns + Users.columns)
+            .select(
+                Bookings.id,
+                Services.name,
+                Services.id,
+                Bookings.date,
+                Bookings.time,
+                Users.name,
+                Users.id,
+                Bookings.status,
+                Services.price,
+                Services.duration,
+                Services.xp
+            )
             .where {
                 (Bookings.userId eq userId) and
                         (Bookings.date greaterEq today) and
@@ -40,32 +88,62 @@ class AppServiceImpl : AppService {
             .orderBy(Bookings.date.asc(), Bookings.time.asc())
             .limit(1)
             .map { row ->
-                NextAppointmentResponse(
+                AppointmentResponse(
                     id = row[Bookings.id]!!,
                     serviceName = row[Services.name]!!,
-                    serviceId = row[Bookings.serviceId]!!,
+                    serviceId = row[Services.id]!!,
                     date = row[Bookings.date]!!.toString(),
                     time = row[Bookings.time]!!.toString(),
                     stylistName = row[Users.name]!!,
                     stylistId = row[Users.id]!!,
-                    status = row[Bookings.status]!!
+                    status = row[Bookings.status]!!,
+                    price = row[Services.price]!!,
+                    duration = row[Services.duration]!!,
+                    xpEarned = 0
                 )
             }
             .firstOrNull()
     }
 
-    override suspend fun getPastAppointments(userId: Int): List<PastAppointmentResponse> {
+    override suspend fun getPastAppointments(userId: Int): List<AppointmentResponse> {
         val today = LocalDate.now()
-        return database.from(Bookings).innerJoin(Services, on = Bookings.serviceId eq Services.id).select().where {
-            (Bookings.userId eq userId) and (Bookings.date less today) and (Bookings.status eq 1)
-        }.orderBy(Bookings.date.desc()).map { row ->
-            PastAppointmentResponse(
-                id = row[Bookings.id]!!,
-                serviceName = row[Services.name]!!,
-                date = row[Bookings.date]!!.toString(),
-                xpEarned = row[Services.xp]!!
+        return database.from(Bookings)
+            .innerJoin(Services, on = Bookings.serviceId eq Services.id)
+            .innerJoin(Users, on = Bookings.barberId eq Users.id)
+            .select(
+                Bookings.id,
+                Services.name,
+                Services.id,
+                Bookings.date,
+                Bookings.time,
+                Users.name,
+                Users.id,
+                Bookings.status,
+                Services.price,
+                Services.duration,
+                Services.xp
             )
-        }
+            .where {
+                (Bookings.userId eq userId) and
+                        (Bookings.date less today) and
+                        (Bookings.status eq 1)
+            }
+            .orderBy(Bookings.date.desc())
+            .map { row ->
+                AppointmentResponse(
+                    id = row[Bookings.id]!!,
+                    serviceName = row[Services.name]!!,
+                    serviceId = row[Services.id]!!,
+                    date = row[Bookings.date]!!.toString(),
+                    time = row[Bookings.time]!!.toString(),
+                    stylistName = row[Users.name]!!,
+                    stylistId = row[Users.id]!!,
+                    status = row[Bookings.status]!!,
+                    price = row[Services.price]!!,
+                    duration = row[Services.duration]!!,
+                    xpEarned = row[Services.xp]!!
+                )
+            }
     }
 
     override suspend fun getAllLevels(): List<LevelResponse> {
