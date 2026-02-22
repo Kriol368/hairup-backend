@@ -31,6 +31,7 @@ class AuthServiceImpl : AuthService {
                 set(Users.phone, request.phone)
                 set(Users.created, LocalDate.now())
                 set(Users.xp, 0)
+                set(Users.points, 0)
                 set(Users.admin, false)
                 set(Users.levelId, 1)
             } as Int
