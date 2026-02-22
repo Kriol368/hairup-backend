@@ -748,7 +748,9 @@ fun Route.appRoutes() {
             }
         }
 
+        // ===== CATEGORÍAS (solo admin para escribir) =====
         route("/api/categories") {
+            // GET /api/categories - Todos pueden ver
             get {
                 val principal = call.principal<JWTPrincipal>()
                 val userId = principal?.getClaim("userId", Int::class)
@@ -760,6 +762,145 @@ fun Route.appRoutes() {
 
                 val categories = appService.getAllCategories()
                 call.respond(CategoriesResponse(data = categories))
+            }
+
+
+            // POST /api/categories - Solo admin
+            post {
+                val principal = call.principal<JWTPrincipal>()
+                val isAdmin = principal?.getClaim("isAdmin", Boolean::class) ?: false
+
+                if (!isAdmin) {
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Solo administradores pueden crear categorías"))
+                    return@post
+                }
+
+                try {
+                    val request = call.receive<CreateCategoryRequest>()
+
+                    val result = appService.createCategory(request)
+
+                    result.fold(
+                        onSuccess = { categoryId ->
+                            call.respond(
+                                HttpStatusCode.Created,
+                                CategorySuccessResponse(
+                                    success = true,
+                                    message = "Categoría creada exitosamente",
+                                    id = categoryId
+                                )
+                            )
+                        },
+                        onFailure = { exception ->
+                            call.respond(
+                                HttpStatusCode.BadRequest,
+                                ErrorResponse(exception.message ?: "Error al crear categoría")
+                            )
+                        }
+                    )
+                } catch (e: Exception) {
+                    call.respond(
+                        HttpStatusCode.BadRequest,
+                        ErrorResponse("Formato de request inválido: ${e.message}")
+                    )
+                }
+            }
+
+            // PUT /api/categories/{id} - Solo admin
+            put("/{id}") {
+                val principal = call.principal<JWTPrincipal>()
+                val isAdmin = principal?.getClaim("isAdmin", Boolean::class) ?: false
+
+                if (!isAdmin) {
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Solo administradores pueden actualizar categorías"))
+                    return@put
+                }
+
+                val id = call.parameters["id"]?.toIntOrNull()
+                if (id == null) {
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("ID inválido"))
+                    return@put
+                }
+
+                try {
+                    val request = call.receive<UpdateCategoryRequest>()
+
+                    val result = appService.updateCategory(id, request)
+
+                    result.fold(
+                        onSuccess = { success ->
+                            if (success) {
+                                call.respond(
+                                    HttpStatusCode.OK,
+                                    CategorySuccessResponse(
+                                        success = true,
+                                        message = "Categoría actualizada exitosamente"
+                                    )
+                                )
+                            } else {
+                                call.respond(
+                                    HttpStatusCode.NotFound,
+                                    ErrorResponse("Categoría no encontrada")
+                                )
+                            }
+                        },
+                        onFailure = { exception ->
+                            call.respond(
+                                HttpStatusCode.BadRequest,
+                                ErrorResponse(exception.message ?: "Error al actualizar categoría")
+                            )
+                        }
+                    )
+                } catch (e: Exception) {
+                    call.respond(
+                        HttpStatusCode.BadRequest,
+                        ErrorResponse("Formato de request inválido: ${e.message}")
+                    )
+                }
+            }
+
+            // DELETE /api/categories/{id} - Solo admin
+            delete("/{id}") {
+                val principal = call.principal<JWTPrincipal>()
+                val isAdmin = principal?.getClaim("isAdmin", Boolean::class) ?: false
+
+                if (!isAdmin) {
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Solo administradores pueden eliminar categorías"))
+                    return@delete
+                }
+
+                val id = call.parameters["id"]?.toIntOrNull()
+                if (id == null) {
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("ID inválido"))
+                    return@delete
+                }
+
+                val result = appService.deleteCategory(id)
+
+                result.fold(
+                    onSuccess = { success ->
+                        if (success) {
+                            call.respond(
+                                HttpStatusCode.OK,
+                                CategorySuccessResponse(
+                                    success = true,
+                                    message = "Categoría eliminada exitosamente"
+                                )
+                            )
+                        } else {
+                            call.respond(
+                                HttpStatusCode.NotFound,
+                                ErrorResponse("Categoría no encontrada")
+                            )
+                        }
+                    },
+                    onFailure = { exception ->
+                        call.respond(
+                            HttpStatusCode.BadRequest,
+                            ErrorResponse(exception.message ?: "Error al eliminar categoría")
+                        )
+                    }
+                )
             }
         }
 

@@ -99,3 +99,22 @@ data class ChangePasswordRequest(
 data class RedeemRequest(
     val rewardId: Int
 )
+
+
+
+@Serializable
+data class CreateCategoryRequest(
+    val name: String
+)
+
+@Serializable
+data class UpdateCategoryRequest(
+    val name: String
+)
+
+@Serializable
+data class CategorySuccessResponse(
+    val success: Boolean = true,
+    val message: String,
+    val id: Int? = null
+)

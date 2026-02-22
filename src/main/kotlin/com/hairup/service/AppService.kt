@@ -31,4 +31,7 @@ interface AppService {
     suspend fun getAllRewards(): List<RewardResponse>
     suspend fun addXpAndPoints(userId: Int, xpToAdd: Int): Result<Boolean>
     suspend fun getAllCategories(): List<CategoryResponse>
+    suspend fun createCategory(request: CreateCategoryRequest): Result<Int>
+    suspend fun updateCategory(id: Int, request: UpdateCategoryRequest): Result<Boolean>
+    suspend fun deleteCategory(id: Int): Result<Boolean>
 }

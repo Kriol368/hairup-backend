@@ -889,6 +889,9 @@ class AppServiceImpl : AppService {
             }
         }
     }
+
+    // ===== CATEGORÍAS =====
+
     override suspend fun getAllCategories(): List<CategoryResponse> {
         return database.from(Categories)
             .select()
@@ -899,5 +902,95 @@ class AppServiceImpl : AppService {
                     name = row[Categories.name]!!
                 )
             }
+    }
+
+
+    override suspend fun createCategory(request: CreateCategoryRequest): Result<Int> {
+        return try {
+            if (request.name.isBlank()) {
+                return Result.failure(Exception("El nombre de la categoría no puede estar vacío"))
+            }
+
+            // Verificar si ya existe una categoría con ese nombre
+            val existing = database.from(Categories)
+                .select()
+                .where { Categories.name eq request.name }
+                .totalRecordsInAllPages > 0
+
+            if (existing) {
+                return Result.failure(Exception("Ya existe una categoría con ese nombre"))
+            }
+
+            val categoryId = database.insertAndGenerateKey(Categories) {
+                set(Categories.name, request.name)
+            } as Int
+
+            Result.success(categoryId)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun updateCategory(id: Int, request: UpdateCategoryRequest): Result<Boolean> {
+        return try {
+            if (request.name.isBlank()) {
+                return Result.failure(Exception("El nombre de la categoría no puede estar vacío"))
+            }
+
+            // Verificar si la categoría existe
+            val exists = database.from(Categories)
+                .select()
+                .where { Categories.id eq id }
+                .totalRecordsInAllPages > 0
+
+            if (!exists) {
+                return Result.failure(Exception("Categoría no encontrada"))
+            }
+
+            // Verificar si ya existe otra categoría con ese nombre (distinta de la actual)
+            val duplicate = database.from(Categories)
+                .select()
+                .where { (Categories.name eq request.name) and (Categories.id neq id) }
+                .totalRecordsInAllPages > 0
+
+            if (duplicate) {
+                return Result.failure(Exception("Ya existe otra categoría con ese nombre"))
+            }
+
+            val rowsUpdated = database.update(Categories) {
+                set(Categories.name, request.name)
+                where { Categories.id eq id }
+            }
+
+            Result.success(rowsUpdated > 0)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun deleteCategory(id: Int): Result<Boolean> {
+        return try {
+            // Verificar si hay productos usando esta categoría
+            val productsUsingCategory = database.from(Products)
+                .select()
+                .where { Products.categoryId eq id }
+                .totalRecordsInAllPages > 0
+
+            if (productsUsingCategory) {
+                return Result.failure(Exception("No se puede eliminar la categoría porque tiene productos asociados"))
+            }
+
+            val rowsDeleted = database.delete(Categories) {
+                it.id eq id
+            }
+
+            if (rowsDeleted == 0) {
+                Result.failure(Exception("Categoría no encontrada"))
+            } else {
+                Result.success(true)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 }
