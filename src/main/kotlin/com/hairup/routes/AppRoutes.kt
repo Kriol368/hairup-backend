@@ -943,6 +943,118 @@ fun Route.appRoutes() {
             }
         }
 
+        route("/api/admin/services") {
+            // Crear servicio
+            post {
+                val principal = call.principal<JWTPrincipal>()
+                val isAdmin = principal?.getClaim("isAdmin", Boolean::class) ?: false
+
+                if (!isAdmin) {
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Solo administradores pueden crear servicios"))
+                    return@post
+                }
+
+                try {
+                    val request = call.receive<CreateServiceRequest>()
+
+                    val result = appService.createService(request)
+
+                    result.fold(
+                        onSuccess = { serviceId ->
+                            call.respond(
+                                HttpStatusCode.Created,
+                                SuccessResponse(message = "Servicio creado exitosamente", id = serviceId)
+                            )
+                        },
+                        onFailure = { exception ->
+                            call.respond(
+                                HttpStatusCode.BadRequest,
+                                ErrorResponse(exception.message ?: "Error al crear servicio")
+                            )
+                        }
+                    )
+                } catch (e: Exception) {
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Formato inválido: ${e.message}"))
+                }
+            }
+
+            // Actualizar servicio
+            put("/{id}") {
+                val principal = call.principal<JWTPrincipal>()
+                val isAdmin = principal?.getClaim("isAdmin", Boolean::class) ?: false
+
+                if (!isAdmin) {
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Solo administradores pueden actualizar servicios"))
+                    return@put
+                }
+
+                val serviceId = call.parameters["id"]?.toIntOrNull()
+                if (serviceId == null) {
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("ID inválido"))
+                    return@put
+                }
+
+                try {
+                    val request = call.receive<UpdateServiceRequest>()
+
+                    if (request.name == null && request.description == null && request.price == null &&
+                        request.duration == null && request.xp == null) {
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse("Debe proporcionar al menos un campo"))
+                        return@put
+                    }
+
+                    val result = appService.updateService(serviceId, request)
+
+                    result.fold(
+                        onSuccess = { success ->
+                            if (success) {
+                                call.respond(HttpStatusCode.OK, SuccessResponse(message = "Servicio actualizado"))
+                            } else {
+                                call.respond(HttpStatusCode.NotFound, ErrorResponse("Servicio no encontrado"))
+                            }
+                        },
+                        onFailure = { exception ->
+                            call.respond(HttpStatusCode.BadRequest, ErrorResponse(exception.message ?: "Error al actualizar"))
+                        }
+                    )
+                } catch (e: Exception) {
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Formato inválido: ${e.message}"))
+                }
+            }
+
+            // Eliminar servicio
+            delete("/{id}") {
+                val principal = call.principal<JWTPrincipal>()
+                val isAdmin = principal?.getClaim("isAdmin", Boolean::class) ?: false
+
+                if (!isAdmin) {
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Solo administradores pueden eliminar servicios"))
+                    return@delete
+                }
+
+                val serviceId = call.parameters["id"]?.toIntOrNull()
+                if (serviceId == null) {
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("ID inválido"))
+                    return@delete
+                }
+
+                val result = appService.deleteService(serviceId)
+
+                result.fold(
+                    onSuccess = { success ->
+                        if (success) {
+                            call.respond(HttpStatusCode.OK, SuccessResponse(message = "Servicio eliminado"))
+                        } else {
+                            call.respond(HttpStatusCode.NotFound, ErrorResponse("Servicio no encontrado"))
+                        }
+                    },
+                    onFailure = { exception ->
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse(exception.message ?: "Error al eliminar"))
+                    }
+                )
+            }
+        }
+
         // ===== REWARDS ENDPOINTS =====
         route("/api/rewards") {
             // Obtener todas las recompensas disponibles

@@ -1042,4 +1042,94 @@ class AppServiceImpl : AppService {
             Result.failure(e)
         }
     }
+    override suspend fun createService(request: CreateServiceRequest): Result<Int> {
+        return try {
+            if (request.name.isBlank()) {
+                return Result.failure(Exception("El nombre del servicio es obligatorio"))
+            }
+            if (request.price <= 0) {
+                return Result.failure(Exception("El precio debe ser mayor a 0"))
+            }
+            if (request.duration <= 0) {
+                return Result.failure(Exception("La duración debe ser mayor a 0"))
+            }
+            if (request.xp < 0) {
+                return Result.failure(Exception("Los XP no pueden ser negativos"))
+            }
+
+            val serviceId = database.insertAndGenerateKey(Services) {
+                set(Services.name, request.name)
+                set(Services.description, request.description)
+                set(Services.price, request.price)
+                set(Services.duration, request.duration)
+                set(Services.xp, request.xp)
+            } as Int
+
+            Result.success(serviceId)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun updateService(serviceId: Int, request: UpdateServiceRequest): Result<Boolean> {
+        return try {
+            val serviceExists = database.from(Services)
+                .select()
+                .where { Services.id eq serviceId }
+                .totalRecordsInAllPages > 0
+
+            if (!serviceExists) {
+                return Result.failure(Exception("Servicio no encontrado"))
+            }
+
+            request.price?.let {
+                if (it <= 0) return Result.failure(Exception("El precio debe ser mayor a 0"))
+            }
+            request.duration?.let {
+                if (it <= 0) return Result.failure(Exception("La duración debe ser mayor a 0"))
+            }
+            request.xp?.let {
+                if (it < 0) return Result.failure(Exception("Los XP no pueden ser negativos"))
+            }
+
+            val rowsUpdated = database.update(Services) {
+                request.name?.let { set(Services.name, it) }
+                request.description?.let { set(Services.description, it) }
+                request.price?.let { set(Services.price, it) }
+                request.duration?.let { set(Services.duration, it) }
+                request.xp?.let { set(Services.xp, it) }
+                where { Services.id eq serviceId }
+            }
+
+            Result.success(rowsUpdated > 0)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun deleteService(serviceId: Int): Result<Boolean> {
+        return try {
+            // Verificar si hay citas usando este servicio
+            val bookingsUsingService = database.from(Bookings)
+                .select()
+                .where { Bookings.serviceId eq serviceId }
+                .totalRecordsInAllPages > 0
+
+            if (bookingsUsingService) {
+                return Result.failure(Exception("No se puede eliminar el servicio porque tiene citas asociadas"))
+            }
+
+            val rowsDeleted = database.delete(Services) {
+                it.id eq serviceId
+            }
+
+            if (rowsDeleted == 0) {
+                Result.failure(Exception("Servicio no encontrado"))
+            } else {
+                Result.success(true)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

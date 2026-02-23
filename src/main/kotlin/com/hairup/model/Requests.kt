@@ -123,3 +123,22 @@ data class CategorySuccessResponse(
 data class AddPointsRequest(
     val points: Int
 )
+
+
+@Serializable
+data class CreateServiceRequest(
+    val name: String,
+    val description: String? = null,
+    val price: Double,
+    val duration: Int,
+    val xp: Int
+)
+
+@Serializable
+data class UpdateServiceRequest(
+    val name: String? = null,
+    val description: String? = null,
+    val price: Double? = null,
+    val duration: Int? = null,
+    val xp: Int? = null
+)
