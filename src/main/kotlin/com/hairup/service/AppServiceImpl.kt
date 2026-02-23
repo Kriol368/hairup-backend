@@ -5,6 +5,7 @@ import com.hairup.model.*
 import com.hairup.utils.PasswordHasher
 import org.ktorm.database.Database
 import org.ktorm.dsl.*
+import org.ktorm.schema.Column
 import java.time.LocalDate
 import java.time.LocalTime
 
@@ -737,9 +738,7 @@ class AppServiceImpl : AppService {
     override suspend fun getBookingsByBarber(barberId: Int): List<AppointmentDetailResponse> {
         val today = LocalDate.now()
 
-        return database.from(Bookings)
-            .innerJoin(Services, on = Bookings.serviceId eq Services.id)
-            .innerJoin(Users, on = Bookings.userId eq Users.id)
+        val bookings = database.from(Bookings)
             .select()
             .where {
                 (Bookings.barberId eq barberId) and
@@ -747,16 +746,66 @@ class AppServiceImpl : AppService {
             }
             .orderBy(Bookings.date.asc(), Bookings.time.asc())
             .map { row ->
-                AppointmentDetailResponse(
+                BookingRow(
                     id = row[Bookings.id]!!,
-                    serviceName = row[Services.name]!!,
-                    clientName = row[Users.name]!!,
-                    clientPhone = row[Users.phone],
-                    date = row[Bookings.date]!!.toString(),
-                    time = row[Bookings.time]!!.toString(),
+                    serviceId = row[Bookings.serviceId]!!,
+                    userId = row[Bookings.userId]!!,
+                    barberId = row[Bookings.barberId],
+                    date = row[Bookings.date]!!,
+                    time = row[Bookings.time]!!,
                     status = row[Bookings.status]!!
                 )
             }
+
+        return bookings.map { booking ->
+            val service = database.from(Services)
+                .select()
+                .where { Services.id eq booking.serviceId }
+                .map { row ->
+                    ServiceRow(
+                        name = row[Services.name]!!,
+                        price = row[Services.price]!!,
+                        duration = row[Services.duration]!!
+                    )
+                }
+                .firstOrNull()
+
+            val client = database.from(Users)
+                .select()
+                .where { Users.id eq booking.userId }
+                .map { row ->
+                    UserRow(
+                        name = row[Users.name]!!,
+                        phone = row[Users.phone]
+                    )
+                }
+                .firstOrNull()
+
+            val stylist = database.from(Users)
+                .select()
+                .where { Users.id eq barberId }
+                .map { row ->
+                    UserRow(
+                        name = row[Users.name]!!,
+                        phone = row[Users.phone]
+                    )
+                }
+                .firstOrNull()
+
+            AppointmentDetailResponse(
+                id = booking.id,
+                serviceName = service?.name ?: "Servicio desconocido",
+                price = service?.price ?: 0.0,
+                duration = service?.duration ?: 0,
+                clientName = client?.name ?: "Cliente desconocido",
+                clientPhone = client?.phone,
+                stylistName = stylist?.name ?: "Sin peluquero",
+                stylistId = barberId,
+                date = booking.date.toString(),
+                time = booking.time.toString(),
+                status = booking.status
+            )
+        }
     }
 
     override suspend fun getAllRewards(): List<RewardResponse> {
@@ -1042,6 +1091,7 @@ class AppServiceImpl : AppService {
             Result.failure(e)
         }
     }
+
     override suspend fun createService(request: CreateServiceRequest): Result<Int> {
         return try {
             if (request.name.isBlank()) {
@@ -1132,4 +1182,99 @@ class AppServiceImpl : AppService {
             Result.failure(e)
         }
     }
+
+    override suspend fun getAllAppointments(): List<AppointmentDetailResponse> {
+        // Primero obtenemos todas las reservas
+        val bookings = database.from(Bookings)
+            .select()
+            .orderBy(Bookings.date.desc(), Bookings.time.desc())
+            .map { row ->
+                BookingRow(
+                    id = row[Bookings.id]!!,
+                    serviceId = row[Bookings.serviceId]!!,
+                    userId = row[Bookings.userId]!!,
+                    barberId = row[Bookings.barberId],
+                    date = row[Bookings.date]!!,
+                    time = row[Bookings.time]!!,
+                    status = row[Bookings.status]!!
+                )
+            }
+
+        // Para cada reserva, obtenemos los datos relacionados
+        return bookings.map { booking ->
+            val service = database.from(Services)
+                .select()
+                .where { Services.id eq booking.serviceId }
+                .map { row ->
+                    ServiceRow(
+                        name = row[Services.name]!!,
+                        price = row[Services.price]!!,
+                        duration = row[Services.duration]!!
+                    )
+                }
+                .firstOrNull()
+
+            val client = database.from(Users)
+                .select()
+                .where { Users.id eq booking.userId }
+                .map { row ->
+                    UserRow(
+                        name = row[Users.name]!!,
+                        phone = row[Users.phone]
+                    )
+                }
+                .firstOrNull()
+
+            val stylist = booking.barberId?.let { barberId ->
+                database.from(Users)
+                    .select()
+                    .where { Users.id eq barberId }
+                    .map { row ->
+                        UserRow(
+                            name = row[Users.name]!!,
+                            phone = row[Users.phone]
+                        )
+                    }
+                    .firstOrNull()
+            }
+
+            AppointmentDetailResponse(
+                id = booking.id,
+                serviceName = service?.name ?: "Servicio desconocido",
+                price = service?.price ?: 0.0,
+                duration = service?.duration ?: 0,
+                clientName = client?.name ?: "Cliente desconocido",
+                clientPhone = client?.phone,
+                stylistName = stylist?.name ?: "Sin peluquero",
+                stylistId = booking.barberId ?: 0,
+                date = booking.date.toString(),
+                time = booking.time.toString(),
+                status = booking.status
+            )
+        }
+    }
+
+    // Clases auxiliares
+    private data class BookingRow(
+        val id: Int,
+        val serviceId: Int,
+        val userId: Int,
+        val barberId: Int?,
+        val date: LocalDate,
+        val time: LocalTime,
+        val status: Int
+    )
+
+    private data class ServiceRow(
+        val name: String,
+        val price: Double,
+        val duration: Int
+    )
+
+    private data class UserRow(
+        val name: String,
+        val phone: String?
+    )
+
+
 }

@@ -1055,6 +1055,21 @@ fun Route.appRoutes() {
             }
         }
 
+        route("/api/admin/appointments") {
+            get {
+                val principal = call.principal<JWTPrincipal>()
+                val isAdmin = principal?.getClaim("isAdmin", Boolean::class) ?: false
+
+                if (!isAdmin) {
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Solo administradores pueden ver todas las citas"))
+                    return@get
+                }
+
+                val appointments = appService.getAllAppointments()
+                call.respond(ListResponse(data = appointments))
+            }
+        }
+
         // ===== REWARDS ENDPOINTS =====
         route("/api/rewards") {
             // Obtener todas las recompensas disponibles

@@ -118,8 +118,12 @@ data class TimeSlot(
 data class AppointmentDetailResponse(
     val id: Int,
     val serviceName: String,
+    val price: Double,
+    val duration: Int,
     val clientName: String,
     val clientPhone: String?,
+    val stylistName: String,
+    val stylistId: Int,
     val date: String,
     val time: String,
     val status: Int

@@ -38,4 +38,5 @@ interface AppService {
     suspend fun createService(request: CreateServiceRequest): Result<Int>
     suspend fun updateService(serviceId: Int, request: UpdateServiceRequest): Result<Boolean>
     suspend fun deleteService(serviceId: Int): Result<Boolean>
+    suspend fun getAllAppointments(): List<AppointmentDetailResponse>
 }
