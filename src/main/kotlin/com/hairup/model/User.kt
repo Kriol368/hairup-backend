@@ -17,6 +17,7 @@ interface User : Entity<User> {
     var phone: String?
     var created: LocalDate
     var levelId: Int
+    var active: Boolean
 }
 
 object Users : Table<User>("user") {
@@ -30,4 +31,5 @@ object Users : Table<User>("user") {
     val phone = text("phone").bindTo { it.phone }
     val created = date("created").bindTo { it.created }
     val levelId = int("level_id").bindTo { it.levelId }
+    var active = boolean("active").bindTo { it.active }
 }

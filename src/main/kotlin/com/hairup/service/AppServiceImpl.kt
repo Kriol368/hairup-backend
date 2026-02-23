@@ -1422,4 +1422,49 @@ class AppServiceImpl : AppService {
         val status: Int
     )
 
+    override suspend fun toggleUserActive(userId: Int, active: Boolean): Result<Boolean> {
+        return try {
+            val userExists = database.from(Users)
+                .select()
+                .where { Users.id eq userId }
+                .totalRecordsInAllPages > 0
+
+            if (!userExists) {
+                return Result.failure(Exception("Usuario no encontrado"))
+            }
+
+            // No permitir deshabilitar al último admin
+            if (!active) {
+                val isTargetAdmin = database.from(Users)
+                    .select()
+                    .where { (Users.id eq userId) and (Users.admin eq true) }
+                    .totalRecordsInAllPages > 0
+
+                if (isTargetAdmin) {
+                    val adminCount = database.from(Users)
+                        .select()
+                        .where { Users.admin eq true }
+                        .totalRecordsInAllPages
+
+                    if (adminCount <= 1) {
+                        return Result.failure(Exception("No puedes deshabilitar al último administrador"))
+                    }
+                }
+            }
+
+            val rowsUpdated = database.update(Users) {
+                set(Users.active, active)  // Necesitas añadir campo 'active' a la tabla Users
+                where { Users.id eq userId }
+            }
+
+            if (rowsUpdated > 0) {
+                Result.success(true)
+            } else {
+                Result.failure(Exception("No se pudo actualizar el usuario"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
 }

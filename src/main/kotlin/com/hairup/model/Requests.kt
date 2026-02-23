@@ -142,3 +142,10 @@ data class UpdateServiceRequest(
     val duration: Int? = null,
     val xp: Int? = null
 )
+
+
+@Serializable
+data class ToggleActiveRequest(
+    val userId: Int,
+    val active: Boolean
+)

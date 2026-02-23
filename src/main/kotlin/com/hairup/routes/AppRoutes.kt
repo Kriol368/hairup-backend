@@ -596,6 +596,54 @@ fun Route.appRoutes() {
             }
         }
 
+        route("/api/admin/toggle-active") {
+            post {
+                val principal = call.principal<JWTPrincipal>()
+                val isAdmin = principal?.getClaim("isAdmin", Boolean::class) ?: false
+                val currentUserId = principal?.getClaim("userId", Int::class)
+
+                if (!isAdmin) {
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Solo administradores pueden realizar esta acción"))
+                    return@post
+                }
+
+                try {
+                    val request = call.receive<ToggleActiveRequest>()
+
+                    if (request.userId <= 0) {
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse("ID de usuario inválido"))
+                        return@post
+                    }
+
+                    if (currentUserId == request.userId) {
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse("No puedes modificar tu propio estado"))
+                        return@post
+                    }
+
+                    val result = appService.toggleUserActive(request.userId, request.active)
+
+                    result.fold(
+                        onSuccess = { _ ->
+                            call.respond(
+                                HttpStatusCode.OK,
+                                SuccessResponse(message = if (request.active) "Usuario habilitado" else "Usuario deshabilitado")
+                            )
+                        },
+                        onFailure = { exception ->
+                            when (exception.message) {
+                                "Usuario no encontrado" ->
+                                    call.respond(HttpStatusCode.NotFound, ErrorResponse(exception.message!!))
+                                else ->
+                                    call.respond(HttpStatusCode.BadRequest, ErrorResponse(exception.message ?: "Error"))
+                            }
+                        }
+                    )
+                } catch (e: Exception) {
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Formato inválido: ${e.message}"))
+                }
+            }
+        }
+
         route("/api/admin/products") {
             post {
                 val principal = call.principal<JWTPrincipal>()

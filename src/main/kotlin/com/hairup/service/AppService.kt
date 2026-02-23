@@ -40,4 +40,5 @@ interface AppService {
     suspend fun deleteService(serviceId: Int): Result<Boolean>
     suspend fun getAllAppointments(): List<AppointmentDetailResponse>
     suspend fun getAdminDashboardStats(adminId: Int?, isGenericAdmin: Boolean): DashboardStatsResponse
+    suspend fun toggleUserActive(userId: Int, active: Boolean): Result<Boolean>
 }
