@@ -155,6 +155,16 @@ data class CategoriesResponse(
     val data: List<CategoryResponse>
 )
 
+@Serializable
+data class UserPointsResponse(
+    val success: Boolean,
+    val message: String,
+    val xpEarned: Int,
+    val pointsEarned: Int,
+    val newXp: Int,
+    val newPoints: Int
+)
+
 
 
 

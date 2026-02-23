@@ -34,4 +34,5 @@ interface AppService {
     suspend fun createCategory(request: CreateCategoryRequest): Result<Int>
     suspend fun updateCategory(id: Int, request: UpdateCategoryRequest): Result<Boolean>
     suspend fun deleteCategory(id: Int): Result<Boolean>
+    suspend fun addPointsToUser(userId: Int, points: Int): Result<UserPointsResponse>
 }

@@ -993,4 +993,53 @@ class AppServiceImpl : AppService {
             Result.failure(e)
         }
     }
+
+    override suspend fun addPointsToUser(userId: Int, points: Int): Result<UserPointsResponse> {
+        return try {
+            if (points <= 0) {
+                return Result.failure(Exception("Los puntos a añadir deben ser mayores a 0"))
+            }
+
+            val user = database.from(Users)
+                .select(Users.xp, Users.points)
+                .where { Users.id eq userId }
+                .map { row ->
+                    Pair(row[Users.xp]!!, row[Users.points]!!)
+                }
+                .firstOrNull()
+
+            if (user == null) {
+                return Result.failure(Exception("Usuario no encontrado"))
+            }
+
+            val (currentXp, currentPoints) = user
+            val newXp = currentXp + points
+            val newPoints = currentPoints + points
+
+            val rowsUpdated = database.update(Users) {
+                set(Users.xp, newXp)
+                set(Users.points, newPoints)
+                where { Users.id eq userId }
+            }
+
+            if (rowsUpdated == 0) {
+                return Result.failure(Exception("No se pudo actualizar el usuario"))
+            }
+
+            updateUserLevel(userId)
+
+            Result.success(
+                UserPointsResponse(
+                    success = true,
+                    message = "Se añadieron $points XP y $points puntos correctamente",
+                    xpEarned = points,
+                    pointsEarned = points,
+                    newXp = newXp,
+                    newPoints = newPoints
+                )
+            )
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

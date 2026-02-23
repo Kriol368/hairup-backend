@@ -118,3 +118,8 @@ data class CategorySuccessResponse(
     val message: String,
     val id: Int? = null
 )
+
+@Serializable
+data class AddPointsRequest(
+    val points: Int
+)

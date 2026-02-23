@@ -903,6 +903,45 @@ fun Route.appRoutes() {
                 )
             }
         }
+        route("/api/user/points") {
+            post("/add") {
+                val principal = call.principal<JWTPrincipal>()
+                val userId = principal?.getClaim("userId", Int::class)
+
+                if (userId == null) {
+                    call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Usuario no autenticado"))
+                    return@post
+                }
+
+                try {
+                    val request = call.receive<AddPointsRequest>()
+
+                    if (request.points <= 0) {
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse("Los puntos deben ser mayores a 0"))
+                        return@post
+                    }
+
+                    val result = appService.addPointsToUser(userId, request.points)
+
+                    result.fold(
+                        onSuccess = { response ->
+                            call.respond(HttpStatusCode.OK, response)
+                        },
+                        onFailure = { exception ->
+                            call.respond(
+                                HttpStatusCode.BadRequest,
+                                ErrorResponse(exception.message ?: "Error al añadir puntos")
+                            )
+                        }
+                    )
+                } catch (e: Exception) {
+                    call.respond(
+                        HttpStatusCode.BadRequest,
+                        ErrorResponse("Formato de request inválido: ${e.message}")
+                    )
+                }
+            }
+        }
 
         // ===== REWARDS ENDPOINTS =====
         route("/api/rewards") {
