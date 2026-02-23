@@ -13,8 +13,8 @@ interface AppService {
     suspend fun getAllProducts(): List<ProductResponse>
     suspend fun getAllServices(): List<ServiceResponse>
     suspend fun createBooking(userId: Int, request: CreateBookingRequest): Result<Int>
-    suspend fun updateBooking(bookingId: Int, userId: Int, request: UpdateBookingRequest): Result<Boolean>
-    suspend fun deleteBooking(bookingId: Int, userId: Int): Result<Boolean>
+    suspend fun updateBooking(bookingId: Int, userId: Int?, request: UpdateBookingRequest): Result<Boolean>
+    suspend fun deleteBooking(bookingId: Int, userId: Int?): Result<Boolean>
     suspend fun createProduct(request: CreateProductRequest): Result<Int>
     suspend fun updateProduct(productId: Int, request: UpdateProductRequest): Result<Boolean>
     suspend fun deleteProduct(productId: Int): Result<Boolean>

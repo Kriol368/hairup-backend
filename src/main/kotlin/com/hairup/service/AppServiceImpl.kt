@@ -285,16 +285,25 @@ class AppServiceImpl : AppService {
 
     override suspend fun updateBooking(
         bookingId: Int,
-        userId: Int,
+        userId: Int?,
         request: UpdateBookingRequest
     ): Result<Boolean> {
         return try {
-            val isPendingBooking = database.from(Bookings).select().where {
-                (Bookings.id eq bookingId) and (Bookings.userId eq userId) and (Bookings.status eq 0)
-            }.totalRecordsInAllPages > 0
+            val condition = if (userId != null) {
+                (Bookings.id eq bookingId) and (Bookings.userId eq userId)
+            } else {
+                (Bookings.id eq bookingId)  // Admin puede actualizar cualquier cita
+            }
 
-            if (!isPendingBooking) {
-                return Result.failure(Exception("Cita no encontrada, no tienes permisos o no está pendiente"))
+            // Si no es admin, verificar que esté pendiente
+            if (userId != null) {
+                val isPendingBooking = database.from(Bookings).select().where {
+                    condition and (Bookings.status eq 0)
+                }.totalRecordsInAllPages > 0
+
+                if (!isPendingBooking) {
+                    return Result.failure(Exception("Cita no encontrada, no tienes permisos o no está pendiente"))
+                }
             }
 
             request.date?.let {
@@ -305,7 +314,7 @@ class AppServiceImpl : AppService {
             }
 
             request.status?.let {
-                if (it !in 0..1) {
+                if (it !in 0..3) {
                     return Result.failure(Exception("Estado inválido"))
                 }
             }
@@ -314,10 +323,7 @@ class AppServiceImpl : AppService {
                 request.date?.let { dateStr -> set(Bookings.date, LocalDate.parse(dateStr)) }
                 request.time?.let { timeStr -> set(Bookings.time, LocalTime.parse(timeStr)) }
                 request.status?.let { status -> set(Bookings.status, status) }
-
-                where {
-                    (Bookings.id eq bookingId) and (Bookings.userId eq userId)
-                }
+                where { condition }
             }
 
             Result.success(rowsUpdated > 0)
@@ -327,11 +333,18 @@ class AppServiceImpl : AppService {
         }
     }
 
-    override suspend fun deleteBooking(bookingId: Int, userId: Int): Result<Boolean> {
+    override suspend fun deleteBooking(bookingId: Int, userId: Int?): Result<Boolean> {
         return try {
-            val rowsDeleted = database.delete(Bookings) {
-                (it.id eq bookingId) and (it.userId eq userId)
+            val condition = if (userId != null) {
+                (Bookings.id eq bookingId) and (Bookings.userId eq userId)
+            } else {
+                (Bookings.id eq bookingId)
             }
+
+            val rowsDeleted = database.delete(Bookings) {
+                condition
+            }
+
             if (rowsDeleted == 0) {
                 Result.failure(Exception("Cita no encontrada o no tienes permisos"))
             } else {

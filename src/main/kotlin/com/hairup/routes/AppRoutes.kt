@@ -499,6 +499,7 @@ fun Route.appRoutes() {
             put("/{id}") {
                 val principal = call.principal<JWTPrincipal>()
                 val userId = principal?.getClaim("userId", Int::class)
+                val isAdmin = principal?.getClaim("isAdmin", Boolean::class) ?: false
 
                 if (userId == null) {
                     call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Usuario no autenticado"))
@@ -515,47 +516,36 @@ fun Route.appRoutes() {
                     val request = call.receive<UpdateBookingRequest>()
 
                     if (request.date == null && request.time == null && request.status == null) {
-                        call.respond(
-                            HttpStatusCode.BadRequest,
-                            ErrorResponse("Debe proporcionar al menos un campo para actualizar")
-                        )
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse("Debe proporcionar al menos un campo"))
                         return@put
                     }
 
-                    val result = appService.updateBooking(bookingId, userId, request)
+                    // Si es admin, pasar userId = null para que no filtre por usuario
+                    val targetUserId = if (isAdmin) null else userId
+
+                    val result = appService.updateBooking(bookingId, targetUserId, request)
 
                     result.fold(
                         onSuccess = { success ->
                             if (success) {
-                                call.respond(
-                                    HttpStatusCode.OK,
-                                    SuccessResponse(message = "Cita actualizada exitosamente")
-                                )
+                                call.respond(HttpStatusCode.OK, SuccessResponse(message = "Cita actualizada"))
                             } else {
-                                call.respond(
-                                    HttpStatusCode.NotFound,
-                                    ErrorResponse("No se pudo actualizar la cita")
-                                )
+                                call.respond(HttpStatusCode.NotFound, ErrorResponse("Cita no encontrada"))
                             }
                         },
                         onFailure = { exception ->
-                            call.respond(
-                                HttpStatusCode.BadRequest,
-                                ErrorResponse(exception.message ?: "Error al actualizar la cita")
-                            )
+                            call.respond(HttpStatusCode.BadRequest, ErrorResponse(exception.message ?: "Error"))
                         }
                     )
                 } catch (e: Exception) {
-                    call.respond(
-                        HttpStatusCode.BadRequest,
-                        ErrorResponse("Formato de request inválido: ${e.message}")
-                    )
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Formato inválido: ${e.message}"))
                 }
             }
 
             delete("/{id}") {
                 val principal = call.principal<JWTPrincipal>()
                 val userId = principal?.getClaim("userId", Int::class)
+                val isAdmin = principal?.getClaim("isAdmin", Boolean::class) ?: false
 
                 if (userId == null) {
                     call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Usuario no autenticado"))
@@ -568,27 +558,21 @@ fun Route.appRoutes() {
                     return@delete
                 }
 
-                val result = appService.deleteBooking(bookingId, userId)
+                // Si es admin, pasar userId = null para que no filtre por usuario
+                val targetUserId = if (isAdmin) null else userId
+
+                val result = appService.deleteBooking(bookingId, targetUserId)
 
                 result.fold(
                     onSuccess = { success ->
                         if (success) {
-                            call.respond(
-                                HttpStatusCode.OK,
-                                SuccessResponse(message = "Cita eliminada exitosamente")
-                            )
+                            call.respond(HttpStatusCode.OK, SuccessResponse(message = "Cita eliminada exitosamente"))
                         } else {
-                            call.respond(
-                                HttpStatusCode.NotFound,
-                                ErrorResponse("Cita no encontrada")
-                            )
+                            call.respond(HttpStatusCode.NotFound, ErrorResponse("Cita no encontrada"))
                         }
                     },
                     onFailure = { exception ->
-                        call.respond(
-                            HttpStatusCode.BadRequest,
-                            ErrorResponse(exception.message ?: "Error al eliminar la cita")
-                        )
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse(exception.message ?: "Error al eliminar la cita"))
                     }
                 )
             }
