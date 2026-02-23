@@ -578,6 +578,24 @@ fun Route.appRoutes() {
             }
         }
 
+        route("/api/admin/dashboard") {
+            get {
+                val principal = call.principal<JWTPrincipal>()
+                val userId = principal?.getClaim("userId", Int::class)
+                val isAdmin = principal?.getClaim("isAdmin", Boolean::class) ?: false
+
+                if (!isAdmin) {
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Acceso denegado"))
+                    return@get
+                }
+
+                val isGenericAdmin = userId == 1
+
+                val stats = appService.getAdminDashboardStats(userId, isGenericAdmin)
+                call.respond(stats)
+            }
+        }
+
         route("/api/admin/products") {
             post {
                 val principal = call.principal<JWTPrincipal>()

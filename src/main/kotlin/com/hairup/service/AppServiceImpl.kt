@@ -1289,5 +1289,137 @@ class AppServiceImpl : AppService {
         val phone: String?
     )
 
+    override suspend fun getAdminDashboardStats(adminId: Int?, isGenericAdmin: Boolean): DashboardStatsResponse {
+        val todayDate = LocalDate.now()  // Usar LocalDate, no String
+
+        // Obtener citas de hoy
+        val todayAppointments = if (isGenericAdmin) {
+            // Todas las citas de hoy
+            val bookings = database.from(Bookings)
+                .select()
+                .where { Bookings.date eq todayDate }  // Aquí comparamos LocalDate con LocalDate
+                .map { row ->
+                    BookingSimple(
+                        id = row[Bookings.id]!!,
+                        userId = row[Bookings.userId]!!,
+                        serviceId = row[Bookings.serviceId]!!,
+                        barberId = row[Bookings.barberId],
+                        time = row[Bookings.time]!!,
+                        status = row[Bookings.status]!!
+                    )
+                }
+
+            bookings.map { booking ->
+                val client = database.from(Users)
+                    .select(Users.name)
+                    .where { Users.id eq booking.userId }
+                    .map { it[Users.name] }
+                    .firstOrNull() ?: "Cliente desconocido"
+
+                val service = database.from(Services)
+                    .select(Services.name)
+                    .where { Services.id eq booking.serviceId }
+                    .map { it[Services.name] }
+                    .firstOrNull() ?: "Servicio desconocido"
+
+                val stylistName = booking.barberId?.let { barberId ->
+                    database.from(Users)
+                        .select(Users.name)
+                        .where { Users.id eq barberId }
+                        .map { it[Users.name] }
+                        .firstOrNull()
+                } ?: "Sin peluquero"
+
+                MiniAppointmentResponse(
+                    id = booking.id,
+                    clientName = client,
+                    serviceName = service,
+                    time = booking.time.toString().substring(0, 5),
+                    status = booking.status,
+                    stylistName = stylistName
+                )
+            }
+        } else {
+            // Citas de hoy de un stylist específico
+            val bookings = database.from(Bookings)
+                .select()
+                .where { (Bookings.barberId eq adminId!!) and (Bookings.date eq todayDate) }
+                .map { row ->
+                    BookingSimple(
+                        id = row[Bookings.id]!!,
+                        userId = row[Bookings.userId]!!,
+                        serviceId = row[Bookings.serviceId]!!,
+                        barberId = row[Bookings.barberId],
+                        time = row[Bookings.time]!!,
+                        status = row[Bookings.status]!!
+                    )
+                }
+
+            bookings.map { booking ->
+                val client = database.from(Users)
+                    .select(Users.name)
+                    .where { Users.id eq booking.userId }
+                    .map { it[Users.name] }
+                    .firstOrNull() ?: "Cliente desconocido"
+
+                val service = database.from(Services)
+                    .select(Services.name)
+                    .where { Services.id eq booking.serviceId }
+                    .map { it[Services.name] }
+                    .firstOrNull() ?: "Servicio desconocido"
+
+                MiniAppointmentResponse(
+                    id = booking.id,
+                    clientName = client,
+                    serviceName = service,
+                    time = booking.time.toString().substring(0, 5),
+                    status = booking.status,
+                    stylistName = null
+                )
+            }
+        }
+
+        val totalToday = todayAppointments.size
+        val pendingToday = todayAppointments.count { it.status == 0 }
+        val confirmedToday = todayAppointments.count { it.status == 1 }
+
+        // Total de stylists (admins)
+        val totalStylists = database.from(Users)
+            .select()
+            .where { Users.admin eq true }
+            .totalRecordsInAllPages
+
+        // Stylists con citas hoy
+        val activeStylists = if (isGenericAdmin) {
+            val barberIds = database.from(Bookings)
+                .select(Bookings.barberId)
+                .where { Bookings.date eq todayDate }
+                .map { it[Bookings.barberId] }
+                .filterNotNull()
+                .toSet()
+            barberIds.size
+        } else {
+            if (totalToday > 0) 1 else 0
+        }
+
+        return DashboardStatsResponse(
+            totalToday = totalToday,
+            pendingToday = pendingToday,
+            confirmedToday = confirmedToday,
+            totalStylists = totalStylists,
+            activeStylists = activeStylists,
+            todayAppointments = todayAppointments
+        )
+    }
+
+    // Clase auxiliar
+    private data class BookingSimple(
+        val id: Int,
+        val userId: Int,
+        val serviceId: Int,
+        val barberId: Int?,
+        val time: LocalTime,
+        val status: Int
+    )
 
 }

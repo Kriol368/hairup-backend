@@ -169,7 +169,25 @@ data class UserPointsResponse(
     val newPoints: Int
 )
 
+@Serializable
+data class DashboardStatsResponse(
+    val totalToday: Int,
+    val pendingToday: Int,
+    val confirmedToday: Int,
+    val totalStylists: Int,
+    val activeStylists: Int,
+    val todayAppointments: List<MiniAppointmentResponse>
+)
 
+@Serializable
+data class MiniAppointmentResponse(
+    val id: Int,
+    val clientName: String,
+    val serviceName: String,
+    val time: String,
+    val status: Int,
+    val stylistName: String? = null
+)
 
 
 
