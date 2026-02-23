@@ -16,6 +16,7 @@ data class AppointmentResponse(
     val duration: Int,
     val xpEarned: Int
 )
+
 @Serializable
 data class UserProfileResponse(
     val id: Int,

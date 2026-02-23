@@ -23,7 +23,6 @@ data class AuthResponse(
 )
 
 
-
 @Serializable
 data class ErrorResponse(
     val error: String
@@ -99,7 +98,6 @@ data class ChangePasswordRequest(
 data class RedeemRequest(
     val rewardId: Int
 )
-
 
 
 @Serializable

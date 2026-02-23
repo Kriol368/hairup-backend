@@ -520,7 +520,6 @@ fun Route.appRoutes() {
                         return@put
                     }
 
-                    // Si es admin, pasar userId = null para que no filtre por usuario
                     val targetUserId = if (isAdmin) null else userId
 
                     val result = appService.updateBooking(bookingId, targetUserId, request)
@@ -558,7 +557,6 @@ fun Route.appRoutes() {
                     return@delete
                 }
 
-                // Si es admin, pasar userId = null para que no filtre por usuario
                 val targetUserId = if (isAdmin) null else userId
 
                 val result = appService.deleteBooking(bookingId, targetUserId)
@@ -572,7 +570,10 @@ fun Route.appRoutes() {
                         }
                     },
                     onFailure = { exception ->
-                        call.respond(HttpStatusCode.BadRequest, ErrorResponse(exception.message ?: "Error al eliminar la cita"))
+                        call.respond(
+                            HttpStatusCode.BadRequest,
+                            ErrorResponse(exception.message ?: "Error al eliminar la cita")
+                        )
                     }
                 )
             }
@@ -603,7 +604,10 @@ fun Route.appRoutes() {
                 val currentUserId = principal?.getClaim("userId", Int::class)
 
                 if (!isAdmin) {
-                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Solo administradores pueden realizar esta acción"))
+                    call.respond(
+                        HttpStatusCode.Forbidden,
+                        ErrorResponse("Solo administradores pueden realizar esta acción")
+                    )
                     return@post
                 }
 
@@ -633,6 +637,7 @@ fun Route.appRoutes() {
                             when (exception.message) {
                                 "Usuario no encontrado" ->
                                     call.respond(HttpStatusCode.NotFound, ErrorResponse(exception.message!!))
+
                                 else ->
                                     call.respond(HttpStatusCode.BadRequest, ErrorResponse(exception.message ?: "Error"))
                             }
@@ -798,9 +803,7 @@ fun Route.appRoutes() {
             }
         }
 
-        // ===== CATEGORÍAS (solo admin para escribir) =====
         route("/api/categories") {
-            // GET /api/categories - Todos pueden ver
             get {
                 val principal = call.principal<JWTPrincipal>()
                 val userId = principal?.getClaim("userId", Int::class)
@@ -815,13 +818,15 @@ fun Route.appRoutes() {
             }
 
 
-            // POST /api/categories - Solo admin
             post {
                 val principal = call.principal<JWTPrincipal>()
                 val isAdmin = principal?.getClaim("isAdmin", Boolean::class) ?: false
 
                 if (!isAdmin) {
-                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Solo administradores pueden crear categorías"))
+                    call.respond(
+                        HttpStatusCode.Forbidden,
+                        ErrorResponse("Solo administradores pueden crear categorías")
+                    )
                     return@post
                 }
 
@@ -856,13 +861,15 @@ fun Route.appRoutes() {
                 }
             }
 
-            // PUT /api/categories/{id} - Solo admin
             put("/{id}") {
                 val principal = call.principal<JWTPrincipal>()
                 val isAdmin = principal?.getClaim("isAdmin", Boolean::class) ?: false
 
                 if (!isAdmin) {
-                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Solo administradores pueden actualizar categorías"))
+                    call.respond(
+                        HttpStatusCode.Forbidden,
+                        ErrorResponse("Solo administradores pueden actualizar categorías")
+                    )
                     return@put
                 }
 
@@ -909,13 +916,15 @@ fun Route.appRoutes() {
                 }
             }
 
-            // DELETE /api/categories/{id} - Solo admin
             delete("/{id}") {
                 val principal = call.principal<JWTPrincipal>()
                 val isAdmin = principal?.getClaim("isAdmin", Boolean::class) ?: false
 
                 if (!isAdmin) {
-                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Solo administradores pueden eliminar categorías"))
+                    call.respond(
+                        HttpStatusCode.Forbidden,
+                        ErrorResponse("Solo administradores pueden eliminar categorías")
+                    )
                     return@delete
                 }
 
@@ -1028,13 +1037,15 @@ fun Route.appRoutes() {
                 }
             }
 
-            // Actualizar servicio
             put("/{id}") {
                 val principal = call.principal<JWTPrincipal>()
                 val isAdmin = principal?.getClaim("isAdmin", Boolean::class) ?: false
 
                 if (!isAdmin) {
-                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Solo administradores pueden actualizar servicios"))
+                    call.respond(
+                        HttpStatusCode.Forbidden,
+                        ErrorResponse("Solo administradores pueden actualizar servicios")
+                    )
                     return@put
                 }
 
@@ -1048,7 +1059,8 @@ fun Route.appRoutes() {
                     val request = call.receive<UpdateServiceRequest>()
 
                     if (request.name == null && request.description == null && request.price == null &&
-                        request.duration == null && request.xp == null) {
+                        request.duration == null && request.xp == null
+                    ) {
                         call.respond(HttpStatusCode.BadRequest, ErrorResponse("Debe proporcionar al menos un campo"))
                         return@put
                     }
@@ -1064,7 +1076,10 @@ fun Route.appRoutes() {
                             }
                         },
                         onFailure = { exception ->
-                            call.respond(HttpStatusCode.BadRequest, ErrorResponse(exception.message ?: "Error al actualizar"))
+                            call.respond(
+                                HttpStatusCode.BadRequest,
+                                ErrorResponse(exception.message ?: "Error al actualizar")
+                            )
                         }
                     )
                 } catch (e: Exception) {
@@ -1072,13 +1087,15 @@ fun Route.appRoutes() {
                 }
             }
 
-            // Eliminar servicio
             delete("/{id}") {
                 val principal = call.principal<JWTPrincipal>()
                 val isAdmin = principal?.getClaim("isAdmin", Boolean::class) ?: false
 
                 if (!isAdmin) {
-                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Solo administradores pueden eliminar servicios"))
+                    call.respond(
+                        HttpStatusCode.Forbidden,
+                        ErrorResponse("Solo administradores pueden eliminar servicios")
+                    )
                     return@delete
                 }
 
@@ -1111,7 +1128,10 @@ fun Route.appRoutes() {
                 val isAdmin = principal?.getClaim("isAdmin", Boolean::class) ?: false
 
                 if (!isAdmin) {
-                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Solo administradores pueden ver todas las citas"))
+                    call.respond(
+                        HttpStatusCode.Forbidden,
+                        ErrorResponse("Solo administradores pueden ver todas las citas")
+                    )
                     return@get
                 }
 
@@ -1120,9 +1140,7 @@ fun Route.appRoutes() {
             }
         }
 
-        // ===== REWARDS ENDPOINTS =====
         route("/api/rewards") {
-            // Obtener todas las recompensas disponibles
             get {
                 val principal = call.principal<JWTPrincipal>()
                 val userId = principal?.getClaim("userId", Int::class)
@@ -1136,7 +1154,6 @@ fun Route.appRoutes() {
                 call.respond(ListResponse(data = rewards))
             }
 
-            // Canjear una recompensa
             post("/redeem") {
                 val principal = call.principal<JWTPrincipal>()
                 val userId = principal?.getClaim("userId", Int::class)
@@ -1164,10 +1181,15 @@ fun Route.appRoutes() {
                             when (exception.message) {
                                 "Usuario no encontrado" ->
                                     call.respond(HttpStatusCode.NotFound, ErrorResponse(exception.message!!))
+
                                 "Recompensa no encontrada" ->
                                     call.respond(HttpStatusCode.NotFound, ErrorResponse(exception.message!!))
+
                                 else ->
-                                    call.respond(HttpStatusCode.BadRequest, ErrorResponse(exception.message ?: "Error al canjear recompensa"))
+                                    call.respond(
+                                        HttpStatusCode.BadRequest,
+                                        ErrorResponse(exception.message ?: "Error al canjear recompensa")
+                                    )
                             }
                         }
                     )
